@@ -8,6 +8,7 @@ import 'package:flutter/services.dart';
 import 'firebase_options.dart';
 import 'services/bluetooth_service.dart';
 import 'screens/radio_accessory_page.dart';
+import 'services/chat_service.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -153,7 +154,7 @@ class _MeshHomePageState extends State<MeshHomePage> {
     final pages = [chatTab(), deviceTab(), settingsTab()];
     return Scaffold(
       appBar: AppBar(title: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [const Text('MeshMessage', style: TextStyle(fontWeight: FontWeight.bold)), Text(['Chats', 'Nearby devices', 'Settings'][tab], style: const TextStyle(fontSize: 11, color: Colors.white60))]),
-        actions: [if (tab == 0) IconButton(tooltip: 'Find user by UID', onPressed: findUid, icon: const Icon(Icons.person_add_alt_1)), Padding(padding: const EdgeInsets.only(right: 14), child: Icon(connected ? Icons.bluetooth_connected : Icons.bluetooth, color: connected ? Colors.lightGreenAccent : null))]),
+        actions: [Padding(padding: const EdgeInsets.only(right: 14), child: Icon(connected ? Icons.bluetooth_connected : Icons.bluetooth, color: connected ? Colors.lightGreenAccent : null))]),
       body: SafeArea(child: pages[tab]),
       bottomNavigationBar: NavigationBar(selectedIndex: tab, onDestinationSelected: (v) => setState(() => tab = v), destinations: const [
         NavigationDestination(icon: Icon(Icons.chat_bubble_outline), selectedIcon: Icon(Icons.chat), label: 'Chats'),
@@ -161,30 +162,7 @@ class _MeshHomePageState extends State<MeshHomePage> {
         NavigationDestination(icon: Icon(Icons.settings_outlined), selectedIcon: Icon(Icons.settings), label: 'Settings')]));
   }
 
-  Widget chatTab() {
-    return Column(children: [
-      Container(color: const Color(0xFF1C2B31), padding: const EdgeInsets.all(11), child: Row(children: [
-        Icon(Icons.circle, size: 9, color: connected ? Colors.greenAccent : Colors.orangeAccent), const SizedBox(width: 8),
-        Expanded(child: Text(connected ? 'Bluetooth peer connected' : status, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12, color: Colors.white70))),
-        Text('@' + (FirebaseAuth.instance.currentUser?.displayName ?? 'user'), style: const TextStyle(fontSize: 12, color: Colors.white54))])),
-      Expanded(child: messages.isEmpty ? Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
-        Icon(Icons.forum_outlined, size: 58, color: Colors.white.withOpacity(0.25)), const SizedBox(height: 12),
-        const Text('Your messages will appear here', style: TextStyle(color: Colors.white70)),
-        const Text('Connect to a nearby device to start', style: TextStyle(fontSize: 12, color: Colors.white38))]))
-        : ListView.builder(padding: const EdgeInsets.all(14), itemCount: messages.length, itemBuilder: (context, i) {
-          final m = messages[i];
-          return Align(alignment: m.mine ? Alignment.centerRight : Alignment.centerLeft, child: Container(
-            constraints: const BoxConstraints(maxWidth: 290), margin: const EdgeInsets.symmetric(vertical: 5),
-            padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 9),
-            decoration: BoxDecoration(color: m.mine ? const Color(0xFF075E54) : const Color(0xFF25343B), borderRadius: BorderRadius.circular(14)),
-            child: Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-              Align(alignment: Alignment.centerLeft, child: Text(m.text)),
-              Text(m.time.hour.toString().padLeft(2, '0') + ':' + m.time.minute.toString().padLeft(2, '0'), style: const TextStyle(fontSize: 10, color: Colors.white54))]))); })),
-      Container(color: const Color(0xFF17252B), padding: const EdgeInsets.all(9), child: Row(children: [
-        Expanded(child: TextField(controller: composer, maxLength: 20, onSubmitted: (_) => send(), decoration: InputDecoration(hintText: connected ? 'Message · 20-byte BLE limit' : 'Connect a device to message', counterText: '', filled: true, fillColor: const Color(0xFF26363D), border: OutlineInputBorder(borderRadius: BorderRadius.circular(24), borderSide: BorderSide.none), contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12)))),
-        const SizedBox(width: 8), IconButton.filled(onPressed: connected && !sending ? send : null, icon: const Icon(Icons.send), style: IconButton.styleFrom(backgroundColor: const Color(0xFF128C7E)))]))
-    ]);
-  }
+  Widget chatTab() => ChatListPage();
 
   Widget deviceTab() => Padding(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
     Card(child: ListTile(leading: Icon(connected ? Icons.bluetooth_connected : Icons.bluetooth_searching), title: const Text('Bluetooth status'), subtitle: Text(status))),
