@@ -40,10 +40,10 @@ Never commit `.env` files, Firebase config files, signing keys, Admin SDK servic
 flutter pub get
 flutter analyze
 flutter test
-flutter build apk --release
+flutter build apk --release --dart-define-from-file=firebase.local.json
 ```
 
-These commands must be run in a complete Flutter/Android project on a computer with Flutter and Android SDK installed. This repository change has not been compiled or device-tested here.
+These commands must be run in a complete Flutter/Android project on a computer with Flutter and Android SDK installed. The current repository branch does not contain the standard Android Gradle wrapper/settings/app files, so an APK cannot yet be built from this branch. GitHub Actions will run Dart validation and only attempt an APK build once the Android Gradle project is present. This branch has not been compiled or device-tested here.
 
 ## Security and radio limitations
 
