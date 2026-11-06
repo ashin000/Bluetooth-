@@ -17,9 +17,9 @@ jobs:
 
       - name: Extract project ZIP
         run: |
-          test -f MeshMessage_Hybrid_v0.2_GitHubBuild.zip
+          test -f MeshMessage_Hybrid_v0.2.zip
           mkdir -p /tmp/mm
-          unzip -q MeshMessage_Hybrid_v0.2_GitHubBuild.zip -d /tmp/mm
+          unzip -q MeshMessage_Hybrid_v0.2.zip -d /tmp/mm
           cp -a /tmp/mm/MeshMessage_Hybrid_v0.2/. .
 
       - name: Set up Java
