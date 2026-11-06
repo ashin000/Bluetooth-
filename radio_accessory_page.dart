@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
-import '../services/lora_accessory_service.dart';
+import 'lora_accessory_service.dart';
 
 class RadioAccessoryPage extends StatefulWidget {
   const RadioAccessoryPage({super.key});
