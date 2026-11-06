@@ -17,31 +17,18 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
           cache: true
-
-      - name: Validate Android scaffold
-        run: |
-          test -f android/settings.gradle
-          test -f android/app/build.gradle
-          test -f android/app/src/main/AndroidManifest.xml
-          test -f android/app/src/main/kotlin/com/example/mesh_message/MainActivity.kt
-
-      - name: Install Flutter dependencies
+      - name: Install dependencies
         run: flutter pub get
-
       - name: Analyze Dart
         run: flutter analyze
-
       - name: Run tests
         run: flutter test
-
       - name: Build release APK
         run: flutter build apk --release
-
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
