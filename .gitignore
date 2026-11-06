@@ -20,3 +20,9 @@ lib/firebase_options.dart
 android/app/google-services.json
 ios/Runner/GoogleService-Info.plist
 macos/Runner/GoogleService-Info.plist
+
+# Local environment files (keep credentials out of Git)
+.env
+.env.*
+!.env.example
+firebase.local.json
