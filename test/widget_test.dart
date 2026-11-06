@@ -15,7 +15,7 @@ void main() {
 
     expect(find.text('MeshMessage'), findsOneWidget);
     expect(find.text('Chats'), findsWidgets);
-    expect(find.text('Nearby devices'), findsOneWidget);
+    expect(find.text('Devices'), findsOneWidget);
     expect(find.text('Settings'), findsOneWidget);
   });
 }
