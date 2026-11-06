@@ -1,0 +1,59 @@
+name: Build MeshMessage APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Extract project ZIP
+        run: |
+          test -f MeshMessage_Hybrid_v0.2_GitHubBuild.zip
+          mkdir -p /tmp/mm
+          unzip -q MeshMessage_Hybrid_v0.2_GitHubBuild.zip -d /tmp/mm
+          cp -a /tmp/mm/MeshMessage_Hybrid_v0.2/. .
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Generate Android project
+        run: |
+          flutter create --platforms=android --org com.example --project-name mesh_message .
+          mkdir -p android/app/src/main/kotlin/com/example/mesh_message
+          cp native/android/AndroidManifest.xml android/app/src/main/AndroidManifest.xml
+          cp native/android/MainActivity.kt android/app/src/main/kotlin/com/example/mesh_message/MainActivity.kt
+
+      - name: Install Flutter packages
+        run: flutter pub get
+
+      - name: Run widget tests
+        run: flutter test
+
+      - name: Build APK
+        run: flutter build apk --release
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: meshmessage-android-apk
+          path: build/app/outputs/flutter-apk/app-release.apk
+          if-no-files-found: error
+          retention-days: 14
