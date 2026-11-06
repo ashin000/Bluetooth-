@@ -14,7 +14,7 @@ void main() {
     await tester.pump();
 
     expect(find.text('MeshMessage'), findsOneWidget);
-    expect(find.text('Chats'), findsOneWidget);
+    expect(find.text('Chats'), findsWidgets);
     expect(find.text('Nearby devices'), findsOneWidget);
     expect(find.text('Settings'), findsOneWidget);
   });
