@@ -1,13 +1,32 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
     match /profiles/{profileUid} {
-      allow read: if request.auth != null;
-      allow create: if request.auth != null
+      // UID lookup is an exact document read; profile lists are not public.
+      allow get: if signedIn();
+      allow list: if false;
+      allow create: if signedIn()
         && request.resource.data.authUid == request.auth.uid
-        && request.resource.data.uid == profileUid;
-      allow update, delete: if request.auth != null
-        && resource.data.authUid == request.auth.uid;
+        && request.resource.data.uid == profileUid
+        && profileUid == request.auth.uid;
+      allow update, delete: if signedIn()
+        && resource.data.authUid == request.auth.uid
+        && request.resource.data.authUid == request.auth.uid;
+    }
+
+    match /usernames/{usernameLower} {
+      allow get: if signedIn();
+      allow list: if false;
+      allow create: if signedIn()
+        && request.resource.data.authUid == request.auth.uid
+        && request.resource.data.username is string;
+      allow update, delete: if signedIn()
+        && resource.data.authUid == request.auth.uid
+        && request.resource.data.authUid == request.auth.uid;
     }
   }
 }
