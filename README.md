@@ -6,7 +6,8 @@ Flutter prototype for an offline-first Bluetooth + LoRa messenger.
 - Firebase email/password registration and login.
 - Unique MeshMessage UID from Firebase Authentication.
 - Username claims stored in Firestore to prevent duplicate usernames.
-- WhatsApp-inspired chat interface and message bubbles.
+- WhatsApp-inspired chat inbox and one-to-one conversations backed by Cloud Firestore.
+- User lookup by exact MeshMessage UID; conversation history syncs across signed-in devices.
 - Bluetooth tab for server, scan, connect and disconnect.
 - Settings tab showing account UID and Bluetooth / LoRa accessory controls.
 - Existing BLE-to-LoRa accessory screen retained.
