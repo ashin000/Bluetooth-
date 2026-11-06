@@ -2,32 +2,40 @@
 
 Flutter prototype for an offline-first Bluetooth + LoRa messenger.
 
-## Current app features
-- Firebase email/password registration and login.
-- Unique MeshMessage UID from Firebase Authentication.
-- Username claims stored in Firestore to prevent duplicate usernames.
-- WhatsApp-inspired chat inbox and one-to-one conversations backed by Cloud Firestore.
-- User lookup by exact MeshMessage UID; conversation history syncs across signed-in devices.
-- Bluetooth tab for server, scan, connect and disconnect.
-- Settings tab showing account UID and Bluetooth / LoRa accessory controls.
-- Existing BLE-to-LoRa accessory screen retained.
+## Product decisions
 
-## Firebase setup (required before the app can run)
-1. Create a Firebase project.
-2. Register the Android app using the exact Android application ID from `android/app/build.gradle` or `android/app/build.gradle.kts`. The native activity currently declares package `com.example.mesh_message`; verify the Gradle application ID matches it.
-3. In Firebase Console, enable **Authentication → Sign-in method → Email/Password**.
-4. Create a **Cloud Firestore** database.
-5. On a computer with Flutter installed, run:
-   ```bash
-   dart pub global activate flutterfire_cli
-   flutterfire configure
-   ```
-   Select the Firebase project and Android app. This generates `lib/firebase_options.dart` and configures the native Firebase Gradle plugin.
-6. Publish the included Firestore rules from Firebase Console → Firestore Database → Rules (or deploy them with Firebase CLI).
+- Account registration and login use Firebase Authentication and require internet.
+- **Continue as Guest** is available without registration. Guest mode does not create a Firebase UID.
+- Firebase is optional for entering the app; a Firebase initialization or network failure must not block guest access.
+- The intended message transport is direct Bluetooth or a compatible LoRa accessory. Internet is not intended to carry offline messages.
+- Cloud account/profile services are separate from offline message transport.
 
-The generated `lib/firebase_options.dart` is intentionally not committed: it must match your Firebase project. Do not upload Admin SDK service-account keys or private credentials.
+## Current implementation status
+
+- Firebase email/password registration and login for registered users.
+- Username claims and account profiles in Cloud Firestore.
+- Guest entry and guest-session preference stored locally with SharedPreferences.
+- Bluetooth tab with scan, server, connect and disconnect controls.
+- LoRa accessory BLE screen retained.
+- Registered-user chat inbox currently uses Cloud Firestore and is **online-only**. It is not yet the offline transport.
+- Guest mode currently provides the offline entry shell and Bluetooth device controls. A local SQLite conversation store, peer discovery/identity exchange, and message routing into Bluetooth/LoRa are still required before end-to-end offline chat is complete.
+- Bluetooth prototype payload limit is 20 UTF-8 bytes.
+- LoRa radio transmission remains disabled in the supplied prototype firmware until the compliant Indian WPC radio profile is confirmed.
+
+## Firebase setup
+
+Firebase is used for account registration/login and profile lookup, not as the required message transport.
+
+1. Create a Firebase project and register the Android app with the exact application ID used by the Android Gradle configuration.
+2. Enable **Authentication → Sign-in method → Email/Password**.
+3. Create a Cloud Firestore database.
+4. Configure FlutterFire for the project and ensure `lib/firebase_options.dart` and the Android Google Services configuration match your project.
+5. Publish `firestore.rules` from Firebase Console → Firestore Database → Rules.
+
+Never upload Admin SDK service-account keys or private credentials.
 
 ## Run and validate
+
 ```bash
 flutter pub get
 flutter analyze
@@ -35,9 +43,11 @@ flutter test
 flutter build apk --release
 ```
 
-## Current prototype limits
-- Chat bubbles currently show the live local Bluetooth session; chat history is not persisted to Firestore.
-- UID lookup verifies a profile but does not yet create a persistent one-to-one conversation.
-- Bluetooth phone-to-phone messages are plaintext, one-hop and limited to 20 UTF-8 bytes.
-- The LoRa screen connects to the accessory over BLE. The supplied firmware keeps radio transmission disabled pending confirmation of the compliant Indian WPC radio profile.
-- Do not use this prototype for private or sensitive communication. Production requires end-to-end encryption, abuse controls, secure key management and delivery acknowledgements.
+These commands must be run in a complete Flutter/Android project on a computer with Flutter and Android SDK installed. This repository change has not been compiled or device-tested here.
+
+## Security and radio limitations
+
+- Current Bluetooth messages are plaintext, one-hop and limited to 20 UTF-8 bytes.
+- Do not use this prototype for private or sensitive communication.
+- Production requires end-to-end encryption, key management, message acknowledgements, replay protection, identity verification, and abuse controls.
+- LoRa transmission must remain disabled until legal frequency, bandwidth, spreading factor, transmit power, duty-cycle and hardware settings are verified for the intended region.
