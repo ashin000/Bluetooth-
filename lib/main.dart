@@ -7,7 +7,6 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'firebase_options.dart';
 import 'services/bluetooth_service.dart';
 import 'screens/radio_accessory_page.dart';
 import 'services/chat_service.dart';
@@ -16,11 +15,29 @@ bool firebaseReady = false;
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  try {
-    await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
-    firebaseReady = true;
-  } catch (_) {
-    // Guest mode must remain available when Firebase or the internet is unavailable.
+  const apiKey = String.fromEnvironment('FIREBASE_API_KEY');
+  const appId = String.fromEnvironment('FIREBASE_APP_ID');
+  const senderId = String.fromEnvironment('FIREBASE_MESSAGING_SENDER_ID');
+  const projectId = String.fromEnvironment('FIREBASE_PROJECT_ID');
+  const storageBucket = String.fromEnvironment('FIREBASE_STORAGE_BUCKET');
+
+  // Firebase is optional. No config is committed to the repository.
+  if (apiKey.isNotEmpty && appId.isNotEmpty &&
+      senderId.isNotEmpty && projectId.isNotEmpty) {
+    try {
+      await Firebase.initializeApp(
+        options: FirebaseOptions(
+          apiKey: apiKey,
+          appId: appId,
+          messagingSenderId: senderId,
+          projectId: projectId,
+          storageBucket: storageBucket.isEmpty ? null : storageBucket,
+        ),
+      );
+      firebaseReady = true;
+    } catch (_) {
+      // A Firebase or network failure must not block offline guest mode.
+    }
   }
   runApp(const MeshMessageApp());
 }
