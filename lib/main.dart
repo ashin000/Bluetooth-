@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:math';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
@@ -44,6 +45,9 @@ class AuthGate extends StatefulWidget {
 class _AuthGateState extends State<AuthGate> {
   bool loading = true;
   bool guest = false;
+  String guestId = '';
+
+  String makeGuestId() => 'guest-' + DateTime.now().microsecondsSinceEpoch.toRadixString(36) + '-' + Random.secure().nextInt(0xFFFFFF).toRadixString(16);
 
   @override
   void initState() {
@@ -54,19 +58,24 @@ class _AuthGateState extends State<AuthGate> {
   Future<void> loadSession() async {
     final prefs = await SharedPreferences.getInstance();
     if (!mounted) return;
-    setState(() { guest = prefs.getBool('mesh_guest_mode') ?? false; loading = false; });
+    final activeGuest = prefs.getBool('mesh_guest_mode') ?? false;
+    var id = prefs.getString('mesh_guest_id') ?? '';
+    if (activeGuest && id.isEmpty) { id = makeGuestId(); await prefs.setString('mesh_guest_id', id); }
+    setState(() { guest = activeGuest; guestId = id; loading = false; });
   }
 
   Future<void> enterGuest() async {
     final prefs = await SharedPreferences.getInstance();
+    final id = prefs.getString('mesh_guest_id') ?? makeGuestId();
+    await prefs.setString('mesh_guest_id', id);
     await prefs.setBool('mesh_guest_mode', true);
-    if (mounted) setState(() => guest = true);
+    if (mounted) setState(() { guest = true; guestId = id; });
   }
 
   @override
   Widget build(BuildContext context) {
     if (loading) return const Scaffold(body: Center(child: CircularProgressIndicator()));
-    if (guest || !firebaseReady) return MeshHomePage(guest: true, onExitGuest: () async {
+    if (guest || !firebaseReady) return MeshHomePage(guest: true, guestId: guestId, onExitGuest: () async {
       final prefs = await SharedPreferences.getInstance();
       await prefs.remove('mesh_guest_mode');
       if (mounted) setState(() => guest = false);
@@ -151,8 +160,9 @@ class _AuthPageState extends State<AuthPage> {
     ])))))));
 
 class MeshHomePage extends StatefulWidget {
-  const MeshHomePage({super.key, this.guest = false, this.onExitGuest});
+  const MeshHomePage({super.key, this.guest = false, this.guestId = '', this.onExitGuest});
   final bool guest;
+  final String guestId;
   final VoidCallback? onExitGuest;
   @override
   State<MeshHomePage> createState() => _MeshHomePageState();
@@ -227,7 +237,7 @@ class _MeshHomePageState extends State<MeshHomePage> {
     if (widget.guest) {
       return ListView(padding: const EdgeInsets.all(16), children: [
         const Card(child: ListTile(leading: Icon(Icons.person_outline), title: Text('Guest mode'), subtitle: Text('No account or internet required for this local session.'))),
-        const Card(child: ListTile(leading: Icon(Icons.wifi_off), title: Text('Offline identity'), subtitle: Text('This device is using a guest session. It is not a Firebase UID and is not searchable by other users.'))),
+        Card(child: ListTile(leading: const Icon(Icons.wifi_off), title: const Text('Local guest ID'), subtitle: SelectableText(widget.guestId.isEmpty ? 'Creating local ID…' : widget.guestId), trailing: IconButton(icon: const Icon(Icons.copy), onPressed: widget.guestId.isEmpty ? null : () async { await Clipboard.setData(ClipboardData(text: widget.guestId)); if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Local ID copied'))); }))),
         const Padding(padding: EdgeInsets.symmetric(vertical: 14), child: Text('Bluetooth and LoRa device controls are available in the Devices tab. LoRa transmission remains disabled until the radio profile is verified.', style: TextStyle(fontSize: 11, color: Colors.orangeAccent))),
         OutlinedButton.icon(onPressed: widget.onExitGuest, icon: const Icon(Icons.logout), label: const Text('Exit guest mode'))
       ]);
