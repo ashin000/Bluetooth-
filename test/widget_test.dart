@@ -7,16 +7,15 @@ void main() {
 
   setUp(() {
     SharedPreferences.setMockInitialValues({});
-    firebaseReady = false;
   });
 
-  testWidgets('MeshMessage opens in guest mode when Firebase is unavailable',
-      (tester) async {
+  testWidgets('MeshMessage UI renders without a backend', (tester) async {
     await tester.pumpWidget(const MeshMessageApp());
-    await tester.pumpAndSettle();
+    await tester.pump();
 
     expect(find.text('MeshMessage'), findsOneWidget);
-    expect(find.text('Offline guest session'), findsOneWidget);
-    expect(find.text('Devices'), findsOneWidget);
+    expect(find.text('Chats'), findsOneWidget);
+    expect(find.text('Nearby devices'), findsOneWidget);
+    expect(find.text('Settings'), findsOneWidget);
   });
 }
