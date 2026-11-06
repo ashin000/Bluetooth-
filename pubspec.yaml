@@ -1,7 +1,7 @@
 name: mesh_message
-description: Offline-first hybrid Bluetooth and LoRa messaging prototype.
+description: Standalone Bluetooth and LoRa messenger UI prototype.
 publish_to: "none"
-version: 0.3.0+3
+version: 0.4.0+4
 
 environment:
   sdk: ">=3.3.0 <4.0.0"
@@ -10,9 +10,6 @@ dependencies:
   flutter:
     sdk: flutter
   flutter_blue_plus: ^1.35.5
-  firebase_core: ^3.15.2
-  firebase_auth: ^5.7.0
-  cloud_firestore: ^5.6.12
   shared_preferences: ^2.5.3
 
 dev_dependencies:
