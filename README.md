@@ -24,15 +24,16 @@ Flutter prototype for an offline-first Bluetooth + LoRa messenger.
 
 ## Firebase setup
 
-Firebase is used for account registration/login and profile lookup, not as the required message transport.
+Firebase is optional for app entry and is used only for registered accounts/profile features. Offline guest entry does not require Firebase configuration.
 
-1. Create a Firebase project and register the Android app with the exact application ID used by the Android Gradle configuration.
-2. Enable **Authentication → Sign-in method → Email/Password**.
-3. Create a Cloud Firestore database.
-4. Configure FlutterFire for the project and ensure `lib/firebase_options.dart` and the Android Google Services configuration match your project.
-5. Publish `firestore.rules` from Firebase Console → Firestore Database → Rules.
+1. Create a Firebase project.
+2. Enable **Authentication → Sign-in method → Email/Password** and create a Cloud Firestore database if you want registered accounts.
+3. Copy `firebase.local.example.json` to `firebase.local.json` on your development machine.
+4. Replace the placeholders with your own Firebase client configuration values.
+5. Build with `--dart-define-from-file=firebase.local.json`. The local file is ignored by Git. Do not upload it or paste its values into public chats/issues.
+6. Publish the included `firestore.rules` from Firebase Console → Firestore Database → Rules.
 
-Never commit `.env` files, Firebase config files, signing keys, Admin SDK service-account keys, private credentials, or production secrets. `.gitignore` excludes local Firebase configuration, but always check `git status` before committing.
+The application initializes Firebase using explicit `FirebaseOptions`; it does not require a committed `google-services.json` or generated `firebase_options.dart`. Client configuration is not a substitute for Firestore rules or App Check. Never commit `.env` files, local Firebase JSON, signing keys, Admin SDK service-account keys, private credentials, or production secrets.
 
 ## Run and validate
 
