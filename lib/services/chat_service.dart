@@ -7,7 +7,7 @@ class MeshChatService {
   String get myUid => FirebaseAuth.instance.currentUser!.uid;
 
   Stream<QuerySnapshot<Map<String, dynamic>>> conversations() => db.collection('chats')
-      .where('members', arrayContains: myUid).orderBy('updatedAt', descending: true).snapshots();
+      .where('members', arrayContains: myUid).snapshots();
 
   Future<Map<String, dynamic>> findProfile(String uid) async {
     final doc = await db.collection('profiles').doc(uid.trim()).get();
