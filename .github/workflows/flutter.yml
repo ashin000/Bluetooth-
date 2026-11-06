@@ -1,0 +1,52 @@
+name: Flutter validation
+
+on:
+  push:
+    branches:
+      - main
+      - feature/chat-settings-auth
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Analyze Dart code
+        run: flutter analyze
+
+      - name: Run tests
+        run: flutter test
+
+      - name: Build Android APK when native project is present
+        if: hashFiles('android/settings.gradle', 'android/settings.gradle.kts') != ''
+        run: |
+          flutter build apk --release \
+            --dart-define=FIREBASE_API_KEY=${{ secrets.FIREBASE_API_KEY }} \
+            --dart-define=FIREBASE_APP_ID=${{ secrets.FIREBASE_APP_ID }} \
+            --dart-define=FIREBASE_MESSAGING_SENDER_ID=${{ secrets.FIREBASE_MESSAGING_SENDER_ID }} \
+            --dart-define=FIREBASE_PROJECT_ID=${{ secrets.FIREBASE_PROJECT_ID }} \
+            --dart-define=FIREBASE_STORAGE_BUCKET=${{ secrets.FIREBASE_STORAGE_BUCKET }}
+
+      - name: Upload APK
+        if: hashFiles('android/settings.gradle', 'android/settings.gradle.kts') != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: meshmessage-release-apk
+          path: build/app/outputs/flutter-apk/app-release.apk
