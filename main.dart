@@ -1,10 +1,20 @@
 import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'firebase_options.dart';
 import 'services/bluetooth_service.dart';
 import 'screens/radio_accessory_page.dart';
 
-void main() => runApp(const MeshMessageApp());
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
+  runApp(const MeshMessageApp());
+}
+
+
 
 class MeshMessageApp extends StatelessWidget {
   const MeshMessageApp({super.key});
