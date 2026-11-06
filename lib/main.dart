@@ -67,7 +67,7 @@ class _AuthPageState extends State<AuthPage> {
             final found = await tx.get(handle);
             if (found.exists) throw StateError('Username is already taken.');
             tx.set(handle, {'authUid': user.uid, 'username': name, 'createdAt': FieldValue.serverTimestamp()});
-            tx.set(profile, {'authUid': user.uid, 'uid': user.uid, 'username': name, 'usernameLower': name.toLowerCase(), 'email': email.text.trim(), 'createdAt': FieldValue.serverTimestamp()});
+            tx.set(profile, {'authUid': user.uid, 'uid': user.uid, 'username': name, 'usernameLower': name.toLowerCase(), 'createdAt': FieldValue.serverTimestamp()});
           });
           await user.updateDisplayName(name);
         } catch (_) { await user.delete(); rethrow; }
