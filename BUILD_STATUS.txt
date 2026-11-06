@@ -1,7 +1,7 @@
-MeshMessage Hybrid v0.2
-Source bundle created.
-Not compiled or hardware-tested in this environment.
-Existing phone-to-phone BLE prototype retained.
-LoRa accessory Flutter BLE client and ESP32-S3/SX1262 firmware starter added.
-LoRa TX intentionally disabled pending Indian WPC compliance review.
-No E2EE or multi-hop forwarding in this build.
+MeshMessage UI-only Flutter build
+Firebase, Firebase Authentication and Firestore have been removed from the app dependencies and entry flow.
+A standard Android Gradle project scaffold is present under android/.
+GitHub Actions validates Dart, runs widget tests and builds a release APK artifact.
+Bluetooth and LoRa accessory features are prototype integrations, not certified end-to-end offline mesh messaging.
+LoRa radio transmission must remain disabled until the hardware and applicable regional radio configuration are verified.
+No successful CI build or hardware test is claimed until GitHub Actions reports success.
