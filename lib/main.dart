@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'firebase_options.dart';
@@ -10,9 +11,16 @@ import 'services/bluetooth_service.dart';
 import 'screens/radio_accessory_page.dart';
 import 'services/chat_service.dart';
 
+bool firebaseReady = false;
+
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  try {
+    await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+    firebaseReady = true;
+  } catch (_) {
+    // Guest mode must remain available when Firebase or the internet is unavailable.
+  }
   runApp(const MeshMessageApp());
 }
 
@@ -27,19 +35,54 @@ class MeshMessageApp extends StatelessWidget {
     home: const AuthGate());
 }
 
-class AuthGate extends StatelessWidget {
+class AuthGate extends StatefulWidget {
   const AuthGate({super.key});
   @override
-  Widget build(BuildContext context) => StreamBuilder<User?>(
-    stream: FirebaseAuth.instance.userChanges(),
-    builder: (context, snap) {
-      if (snap.connectionState == ConnectionState.waiting) return const Scaffold(body: Center(child: CircularProgressIndicator()));
-      return snap.data == null ? const AuthPage() : const MeshHomePage();
+  State<AuthGate> createState() => _AuthGateState();
+}
+
+class _AuthGateState extends State<AuthGate> {
+  bool loading = true;
+  bool guest = false;
+
+  @override
+  void initState() {
+    super.initState();
+    loadSession();
+  }
+
+  Future<void> loadSession() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (!mounted) return;
+    setState(() { guest = prefs.getBool('mesh_guest_mode') ?? false; loading = false; });
+  }
+
+  Future<void> enterGuest() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('mesh_guest_mode', true);
+    if (mounted) setState(() => guest = true);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (loading) return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    if (guest || !firebaseReady) return MeshHomePage(guest: true, onExitGuest: () async {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove('mesh_guest_mode');
+      if (mounted) setState(() => guest = false);
     });
+    return StreamBuilder<User?>(
+      stream: FirebaseAuth.instance.userChanges(),
+      builder: (context, snap) {
+        if (snap.connectionState == ConnectionState.waiting) return const Scaffold(body: Center(child: CircularProgressIndicator()));
+        return snap.data == null ? AuthPage(onGuest: enterGuest) : const MeshHomePage();
+      });
+  }
 }
 
 class AuthPage extends StatefulWidget {
-  const AuthPage({super.key});
+  const AuthPage({super.key, this.onGuest});
+  final VoidCallback? onGuest;
   @override
   State<AuthPage> createState() => _AuthPageState();
 }
@@ -101,11 +144,16 @@ class _AuthPageState extends State<AuthPage> {
       const SizedBox(height: 20),
       FilledButton(onPressed: busy ? null : submit, child: busy ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2)) : Text(registering ? 'Create account' : 'Log in')),
       TextButton(onPressed: busy ? null : () => setState(() { registering = !registering; error = null; }), child: Text(registering ? 'Already registered? Log in' : 'Create a new account')),
+      const SizedBox(height: 8),
+      OutlinedButton.icon(onPressed: busy ? null : widget.onGuest, icon: const Icon(Icons.wifi_off), label: const Text('Continue as Guest')),
+      const Text('Guest mode works without an account. Account registration and login need internet.', textAlign: TextAlign.center, style: TextStyle(fontSize: 11, color: Colors.white54)),
       const Text('Your unique MeshMessage UID is generated automatically.', textAlign: TextAlign.center, style: TextStyle(fontSize: 12, color: Colors.white54))
     ])))))));
 
 class MeshHomePage extends StatefulWidget {
-  const MeshHomePage({super.key});
+  const MeshHomePage({super.key, this.guest = false, this.onExitGuest});
+  final bool guest;
+  final VoidCallback? onExitGuest;
   @override
   State<MeshHomePage> createState() => _MeshHomePageState();
 }
@@ -162,7 +210,7 @@ class _MeshHomePageState extends State<MeshHomePage> {
         NavigationDestination(icon: Icon(Icons.settings_outlined), selectedIcon: Icon(Icons.settings), label: 'Settings')]));
   }
 
-  Widget chatTab() => ChatListPage();
+  Widget chatTab() => widget.guest ? const GuestChatInfoPage() : ChatListPage();
 
   Widget deviceTab() => Padding(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
     Card(child: ListTile(leading: Icon(connected ? Icons.bluetooth_connected : Icons.bluetooth_searching), title: const Text('Bluetooth status'), subtitle: Text(status))),
@@ -176,6 +224,14 @@ class _MeshHomePageState extends State<MeshHomePage> {
     }))]));
 
   Widget settingsTab() {
+    if (widget.guest) {
+      return ListView(padding: const EdgeInsets.all(16), children: [
+        const Card(child: ListTile(leading: Icon(Icons.person_outline), title: Text('Guest mode'), subtitle: Text('No account or internet required for this local session.'))),
+        const Card(child: ListTile(leading: Icon(Icons.wifi_off), title: Text('Offline identity'), subtitle: Text('This device is using a guest session. It is not a Firebase UID and is not searchable by other users.'))),
+        const Padding(padding: EdgeInsets.symmetric(vertical: 14), child: Text('Bluetooth and LoRa device controls are available in the Devices tab. LoRa transmission remains disabled until the radio profile is verified.', style: TextStyle(fontSize: 11, color: Colors.orangeAccent))),
+        OutlinedButton.icon(onPressed: widget.onExitGuest, icon: const Icon(Icons.logout), label: const Text('Exit guest mode'))
+      ]);
+    }
     final user = FirebaseAuth.instance.currentUser!;
     return ListView(padding: const EdgeInsets.all(16), children: [
       Card(child: Padding(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -218,4 +274,23 @@ class _MeshHomePageState extends State<MeshHomePage> {
       ]));
     c.dispose();
   }
+}
+
+
+class GuestChatInfoPage extends StatelessWidget {
+  const GuestChatInfoPage({super.key});
+
+  @override
+  Widget build(BuildContext context) => const Center(
+    child: Padding(
+      padding: EdgeInsets.all(28),
+      child: Column(mainAxisSize: MainAxisSize.min, children: [
+        Icon(Icons.chat_bubble_outline, size: 54, color: Colors.white54),
+        SizedBox(height: 16),
+        Text('Offline guest session', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+        SizedBox(height: 8),
+        Text('Your guest session does not use Firebase. Connect to another MeshMessage device from the Devices tab. Local chat history and peer-to-peer message routing are the next implementation step.', textAlign: TextAlign.center, style: TextStyle(color: Colors.white60))
+      ]),
+    ),
+  );
 }
