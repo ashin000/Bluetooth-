@@ -22,6 +22,10 @@ jobs:
           unzip -q MeshMessage_Hybrid_v0.2.zip -d /tmp/mm
           cp -a /tmp/mm/MeshMessage_Hybrid_v0.2/. .
 
+      - name: Fix old widget test label in bundled source
+        run: |
+          sed -i 's/Bluetooth-only prototype v0.1/Hybrid Bluetooth + LoRa prototype v0.2/g' test/widget_test.dart
+
       - name: Set up Java
         uses: actions/setup-java@v4
         with:
