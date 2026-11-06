@@ -1,0 +1,7 @@
+MeshMessage Hybrid v0.2
+Source bundle created.
+Not compiled or hardware-tested in this environment.
+Existing phone-to-phone BLE prototype retained.
+LoRa accessory Flutter BLE client and ESP32-S3/SX1262 firmware starter added.
+LoRa TX intentionally disabled pending Indian WPC compliance review.
+No E2EE or multi-hop forwarding in this build.
