@@ -13,7 +13,7 @@ permissions:
   contents: read
 
 jobs:
-  validate:
+  build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -23,26 +23,26 @@ jobs:
           channel: stable
           cache: true
 
-      - name: Check Android project structure
+      - name: Validate Android scaffold
         run: |
-          if [ ! -f android/settings.gradle ] && [ ! -f android/settings.gradle.kts ]; then
-            echo "::error::Android Gradle project is missing. Restore the android/ folder from a complete Flutter project."
-            exit 1
-          fi
+          test -f android/settings.gradle
+          test -f android/app/build.gradle
+          test -f android/app/src/main/AndroidManifest.xml
+          test -f android/app/src/main/kotlin/com/example/mesh_message/MainActivity.kt
 
-      - name: Install dependencies
+      - name: Install Flutter dependencies
         run: flutter pub get
 
-      - name: Analyze
+      - name: Analyze Dart
         run: flutter analyze
 
-      - name: Test
+      - name: Run tests
         run: flutter test
 
       - name: Build release APK
         run: flutter build apk --release
 
-      - name: Upload APK
+      - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
           name: meshmessage-release-apk
