@@ -1,37 +1,4 @@
 
-import 'dart:async';
-import 'dart:convert';
-import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
-import 'services/bluetooth_service.dart';
-import 'screens/radio_accessory_page.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-
-Future<void> main() async {
-  WidgetsFlutterBinding.ensureInitialized();
-  runApp(const MeshMessageApp());
-}
-
-class MeshMessageApp extends StatelessWidget {
-  const MeshMessageApp({super.key});
-
-  @override
-  Widget build(BuildContext context) => MaterialApp(
-    title: 'MeshMessage',
-    debugShowCheckedModeBanner: false,
-    theme: ThemeData(
-      useMaterial3: true,
-      brightness: Brightness.dark,
-      colorScheme: ColorScheme.fromSeed(
-        seedColor: const Color(0xFF128C7E),
-        brightness: Brightness.dark,
-      ),
-      scaffoldBackgroundColor: const Color(0xFF101B20),
-    ),
-    home: const MeshHomePage(),
-  );
-}
-
 class MeshHomePage extends StatefulWidget {
   const MeshHomePage({super.key});
 
