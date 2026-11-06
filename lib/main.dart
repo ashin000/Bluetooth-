@@ -175,6 +175,7 @@ class _AuthPageState extends State<AuthPage> {
       const Text('Guest mode works without an account. Account registration and login need internet.', textAlign: TextAlign.center, style: TextStyle(fontSize: 11, color: Colors.white54)),
       const Text('Your unique MeshMessage UID is generated automatically.', textAlign: TextAlign.center, style: TextStyle(fontSize: 12, color: Colors.white54))
     ])))))));
+}
 
 class MeshHomePage extends StatefulWidget {
   const MeshHomePage({super.key, this.guest = false, this.guestId = '', this.onExitGuest});
