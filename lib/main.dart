@@ -71,7 +71,7 @@ class _MeshHomePageState extends State<MeshHomePage> {
     final prefs = await SharedPreferences.getInstance();
     var id = prefs.getString('mesh_local_id') ?? '';
     if (id.isEmpty) {
-      id = 'mesh-' + DateTime.now().microsecondsSinceEpoch.toRadixString(36);
+      id = 'mesh-${DateTime.now().microsecondsSinceEpoch.toRadixString(36)}';
       await prefs.setString('mesh_local_id', id);
     }
     if (mounted) setState(() => localId = id);
@@ -89,11 +89,11 @@ class _MeshHomePageState extends State<MeshHomePage> {
       }
       if (type == 'connected') {
         connected = true;
-        status = 'Connected: ' + data.toString();
+        status = 'Connected: $data';
       }
       if (type == 'disconnected') {
         connected = false;
-        status = 'Disconnected: ' + data.toString();
+        status = 'Disconnected: $data';
       }
       if (type == 'message') {
         messages.add(_ChatMessage(
@@ -105,7 +105,7 @@ class _MeshHomePageState extends State<MeshHomePage> {
       if (type == 'sent') {
         messages.add(_ChatMessage(data.toString(), true, DateTime.now()));
       }
-      if (type == 'error') status = 'Error: ' + data.toString();
+      if (type == 'error') { status = 'Error: $data'; }
     });
   }
 
@@ -175,11 +175,13 @@ class _MeshHomePageState extends State<MeshHomePage> {
       await radio.stopScan();
       await radio.stopServer();
       await radio.disconnect();
-      if (mounted) setState(() {
+      if (mounted) {
+        setState(() {
         connected = false;
         devices.clear();
         status = 'Bluetooth stopped';
-      });
+        });
+      }
     } catch (e) {
       if (mounted) setState(() => status = e.toString());
     }
@@ -258,8 +260,7 @@ class _MeshHomePageState extends State<MeshHomePage> {
                     ),
                     child: Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
                       Align(alignment: Alignment.centerLeft, child: Text(m.text)),
-                      Text(m.time.hour.toString().padLeft(2, '0') + ':' +
-                        m.time.minute.toString().padLeft(2, '0'),
+                      Text('${m.time.hour.toString().padLeft(2, '0')}:${m.time.minute.toString().padLeft(2, '0')}',
                         style: const TextStyle(fontSize: 10, color: Colors.white54)),
                     ]),
                   ),
@@ -326,7 +327,7 @@ class _MeshHomePageState extends State<MeshHomePage> {
                 return Card(child: ListTile(
                   leading: const CircleAvatar(child: Icon(Icons.smartphone)),
                   title: Text((d['name'] ?? 'Unknown device').toString()),
-                  subtitle: Text(d['address'].toString() + ' · RSSI ' + d['rssi'].toString()),
+                  subtitle: Text('${d['address']} · RSSI ${d['rssi']}'),
                   trailing: IconButton(icon: const Icon(Icons.link), onPressed: () => connect(d['address'].toString())),
                 ));
               },
