@@ -32,7 +32,7 @@ Firebase is used for account registration/login and profile lookup, not as the r
 4. Configure FlutterFire for the project and ensure `lib/firebase_options.dart` and the Android Google Services configuration match your project.
 5. Publish `firestore.rules` from Firebase Console → Firestore Database → Rules.
 
-Never upload Admin SDK service-account keys or private credentials.
+Never commit `.env` files, Firebase config files, signing keys, Admin SDK service-account keys, private credentials, or production secrets. `.gitignore` excludes local Firebase configuration, but always check `git status` before committing.
 
 ## Run and validate
 
