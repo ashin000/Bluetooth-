@@ -17,6 +17,6 @@ void main() {
 
     expect(find.text('MeshMessage'), findsOneWidget);
     expect(find.text('Offline guest session'), findsOneWidget);
-    expect(find.text('Nearby devices'), findsOneWidget);
+    expect(find.text('Devices'), findsOneWidget);
   });
 }
