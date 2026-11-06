@@ -5,6 +5,6 @@ void main() {
   testWidgets('MeshMessage home screen renders', (tester) async {
     await tester.pumpWidget(const MeshMessageApp());
     expect(find.text('MeshMessage'), findsOneWidget);
-    expect(find.text('Bluetooth-only prototype v0.1'), findsOneWidget);
+    expect(find.text(''Hybrid Bluetooth + LoRa prototype v0.2''), findsOneWidget);
   });
 }
