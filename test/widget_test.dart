@@ -17,5 +17,11 @@ void main() {
     expect(find.text('Chats'), findsWidgets);
     expect(find.text('Devices'), findsOneWidget);
     expect(find.text('Settings'), findsOneWidget);
+
+    await tester.tap(find.text('Settings'));
+    await tester.pumpAndSettle();
+    expect(find.text('Your profile'), findsOneWidget);
+    expect(find.text('Local profile · No account required'), findsOneWidget);
+    expect(find.text('Save profile'), findsOneWidget);
   });
 }
