@@ -50,7 +50,10 @@ class _MeshHomePageState extends State<MeshHomePage> {
   final radio = BluetoothService();
   final composer = TextEditingController();
   final devices = <Map<String, dynamic>>[];
-  final messages = <_ChatMessage>[];
+  final Map<String, List<_ChatMessage>> conversations = {};
+  final Map<String, String> contacts = {};
+  String? activeChatAddress;
+  bool historyLoaded = false;
   StreamSubscription<Map<String, dynamic>>? events;
   int tab = 0;
   bool connected = false;
@@ -65,6 +68,7 @@ class _MeshHomePageState extends State<MeshHomePage> {
     super.initState();
     loadLocalId();
     loadLocalName();
+    loadChatData();
     events = radio.events.listen(onEvent, onError: (Object e) {
       if (mounted) setState(() => status = e.toString());
     });
@@ -114,6 +118,74 @@ class _MeshHomePageState extends State<MeshHomePage> {
     );
   }
 
+  Future<void> loadChatData() async {
+    final prefs = await SharedPreferences.getInstance();
+    final rawContacts = prefs.getString('mesh_contacts');
+    final rawMessages = prefs.getString('mesh_conversations');
+    if (rawContacts != null) {
+      final decoded = jsonDecode(rawContacts) as Map<String, dynamic>;
+      contacts.addAll(decoded.map((key, value) => MapEntry(key, value.toString())));
+    }
+    if (rawMessages != null) {
+      final decoded = jsonDecode(rawMessages) as Map<String, dynamic>;
+      for (final entry in decoded.entries) {
+        final items = (entry.value as List).cast<Map>();
+        conversations[entry.key] = items.map((item) => _ChatMessage(
+          item['text'].toString(), item['mine'] == true,
+          DateTime.tryParse(item['time'].toString()) ?? DateTime.now(),
+        )).toList();
+      }
+    }
+    if (mounted) setState(() => historyLoaded = true);
+  }
+
+  Future<void> persistChatData() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('mesh_contacts', jsonEncode(contacts));
+    final encoded = conversations.map((key, value) => MapEntry(key, value.map((m) => {
+      'text': m.text, 'mine': m.mine, 'time': m.time.toIso8601String(),
+    }).toList()));
+    await prefs.setString('mesh_conversations', jsonEncode(encoded));
+  }
+
+  String contactName(String address) => contacts[address] ?? 'Unknown contact';
+
+  Future<void> addOrOpenContact(String address, {String? suggestedName}) async {
+    final fallback = suggestedName?.trim().isNotEmpty == true
+        ? suggestedName!.trim() : 'MeshMessage contact';
+    if (!contacts.containsKey(address)) contacts[address] = fallback;
+    conversations.putIfAbsent(address, () => <_ChatMessage>[]);
+    activeChatAddress = address;
+    await persistChatData();
+    if (mounted) setState(() => tab = 0);
+  }
+
+  Future<void> renameContact(String address) async {
+    final controller = TextEditingController(text: contactName(address));
+    final value = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Edit contact name'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          maxLength: 30,
+          decoration: const InputDecoration(labelText: 'Contact name'),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+          FilledButton(onPressed: () => Navigator.pop(context, controller.text.trim()),
+            child: const Text('Save')),
+        ],
+      ),
+    );
+    controller.dispose();
+    if (value == null || value.isEmpty) return;
+    contacts[address] = value;
+    await persistChatData();
+    if (mounted) setState(() {});
+  }
+
   void onEvent(Map<String, dynamic> e) {
     if (!mounted) return;
     final type = e['event']?.toString();
@@ -133,14 +205,17 @@ class _MeshHomePageState extends State<MeshHomePage> {
         status = 'Disconnected: $data';
       }
       if (type == 'message') {
-        messages.add(_ChatMessage(
-          data is Map ? (data['text'] ?? '').toString() : data.toString(),
-          false,
-          DateTime.now(),
-        ));
+        final address = data is Map ? (data['from'] ?? '').toString() : '';
+        final text = data is Map ? (data['text'] ?? '').toString() : data.toString();
+        if (address.isNotEmpty) {
+          conversations.putIfAbsent(address, () => <_ChatMessage>[])
+              .add(_ChatMessage(text, false, DateTime.now()));
+          contacts.putIfAbsent(address, () => 'MeshMessage contact');
+          persistChatData();
+        }
       }
       // 'sent' is a transport acknowledgement, not a chat message.
-      if (type == 'error') { status = 'Error: $data'; }
+      if (type == 'error') status = 'Error: $data';
     });
   }
 
@@ -177,6 +252,7 @@ class _MeshHomePageState extends State<MeshHomePage> {
 
   Future<void> connect(String address) async {
     try {
+      await addOrOpenContact(address, suggestedName: devices.firstWhere((d) => d['address'] == address, orElse: () => {})['name']?.toString());
       await radio.stopScan();
       await radio.connect(address);
     } catch (e) {
@@ -186,16 +262,17 @@ class _MeshHomePageState extends State<MeshHomePage> {
 
   Future<void> send() async {
     final value = composer.text.trim();
-    if (value.isEmpty || sending) return;
+    if (value.isEmpty || sending || activeChatAddress == null) return;
     if (utf8.encode(value).length > 20) {
       setState(() => status = 'Bluetooth limit is 20 UTF-8 bytes');
       return;
     }
     setState(() => sending = true);
     try {
-      await radio.send(value);
+      await radio.send(value, activeChatAddress!);
       if (mounted) {
-        setState(() => messages.add(_ChatMessage(value, true, DateTime.now())));
+        setState(() => conversations.putIfAbsent(activeChatAddress!, () => <_ChatMessage>[]).add(_ChatMessage(value, true, DateTime.now())));
+        await persistChatData();
         composer.clear();
       }
     } catch (e) {
@@ -267,23 +344,51 @@ class _MeshHomePageState extends State<MeshHomePage> {
     );
   }
 
-  Widget chatTab() => Column(
-    children: [
-      if (!connected)
-        const Padding(
-          padding: EdgeInsets.all(16),
-          child: Text('Connect to a nearby MeshMessage device to start chatting.',
-            textAlign: TextAlign.center, style: TextStyle(color: Colors.white60)),
+  Widget chatTab() {
+    if (activeChatAddress == null) {
+      final addresses = contacts.keys.toList();
+      return addresses.isEmpty
+        ? const Center(child: Text('No chats yet. Scan and connect to a nearby device.'))
+        : ListView.builder(
+            itemCount: addresses.length,
+            itemBuilder: (context, index) {
+              final address = addresses[index];
+              final items = conversations[address] ?? [];
+              final last = items.isEmpty ? 'Tap to open conversation' : items.last.text;
+              return ListTile(
+                leading: const CircleAvatar(child: Icon(Icons.person)),
+                title: Text(contactName(address)),
+                subtitle: Text(last, maxLines: 1, overflow: TextOverflow.ellipsis),
+                trailing: PopupMenuButton<String>(
+                  onSelected: (v) { if (v == 'rename') renameContact(address); },
+                  itemBuilder: (_) => const [PopupMenuItem(value: 'rename', child: Text('Edit contact name'))],
+                ),
+                onTap: () => setState(() => activeChatAddress = address),
+              );
+            },
+          );
+    }
+    final address = activeChatAddress!;
+    final items = conversations[address] ?? [];
+    return Column(children: [
+      Material(
+        color: const Color(0xFF1B2B2A),
+        child: ListTile(
+          leading: IconButton(icon: const Icon(Icons.arrow_back), onPressed: () => setState(() => activeChatAddress = null)),
+          title: Text(contactName(address), style: const TextStyle(fontWeight: FontWeight.bold)),
+          subtitle: Text(address + (connected ? ' · connected' : ' · offline')),
+          trailing: IconButton(icon: const Icon(Icons.edit), onPressed: () => renameContact(address)),
         ),
+      ),
       Expanded(
-        child: messages.isEmpty
-          ? const Center(child: Text('No messages yet. Connect a device to begin.'))
+        child: items.isEmpty
+          ? const Center(child: Text('No messages with this contact yet.'))
           : ListView.builder(
               reverse: true,
               padding: const EdgeInsets.all(14),
-              itemCount: messages.length,
+              itemCount: items.length,
               itemBuilder: (context, index) {
-                final m = messages[messages.length - 1 - index];
+                final m = items[items.length - 1 - index];
                 return Align(
                   alignment: m.mine ? Alignment.centerRight : Alignment.centerLeft,
                   child: Container(
@@ -296,7 +401,7 @@ class _MeshHomePageState extends State<MeshHomePage> {
                     ),
                     child: Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
                       Align(alignment: Alignment.centerLeft, child: Text(m.text)),
-                      Text('${m.time.hour.toString().padLeft(2, '0')}:${m.time.minute.toString().padLeft(2, '0')}',
+                      Text(m.time.hour.toString().padLeft(2, '0') + ':' + m.time.minute.toString().padLeft(2, '0'),
                         style: const TextStyle(fontSize: 10, color: Colors.white54)),
                     ]),
                   ),
@@ -316,7 +421,7 @@ class _MeshHomePageState extends State<MeshHomePage> {
                 maxLines: 3,
                 maxLength: 20,
                 decoration: InputDecoration(
-                  hintText: connected ? 'Message (20-byte limit)' : 'Connect a device first',
+                  hintText: connected ? 'Message (20-byte limit)' : 'Connect this contact to send',
                   counterText: '',
                   filled: true,
                   fillColor: const Color(0xFF26363D),
@@ -335,8 +440,8 @@ class _MeshHomePageState extends State<MeshHomePage> {
           ]),
         ),
       ),
-    ],
-  );
+    ]);
+  }
 
   Widget deviceTab() => Padding(
     padding: const EdgeInsets.all(16),
