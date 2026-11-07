@@ -21,8 +21,8 @@ class BluetoothService {
   Future<void> connect(String address) =>
       _methods.invokeMethod('connect', {'address': address});
 
-  Future<void> send(String message) =>
-      _methods.invokeMethod('send', {'message': message});
+  Future<void> send(String message, String address) =>
+      _methods.invokeMethod('send', {'message': message, 'address': address});
 
   Future<void> disconnect() => _methods.invokeMethod('disconnect');
 }

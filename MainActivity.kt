@@ -79,7 +79,8 @@ class MainActivity : FlutterActivity() {
                     }
                     "send" -> {
                         val message = call.argument<String>("message") ?: ""
-                        send(message)
+                        val address = call.argument<String>("address")
+                        send(message, address)
                         result.success(true)
                     }
                     "disconnect" -> {
@@ -440,7 +441,7 @@ class MainActivity : FlutterActivity() {
             characteristic: BluetoothGattCharacteristic
         ) {
             if (characteristic.uuid == txUUID) {
-                emit("message", characteristic.value?.toString(Charsets.UTF_8) ?: "")
+                emit("message", mapOf("from" to gatt.device.address, "text" to (characteristic.value?.toString(Charsets.UTF_8) ?: "")))
             }
         }
 
@@ -450,7 +451,7 @@ class MainActivity : FlutterActivity() {
             value: ByteArray
         ) {
             if (characteristic.uuid == txUUID) {
-                emit("message", value.toString(Charsets.UTF_8))
+                emit("message", mapOf("from" to gatt.device.address, "text" to value.toString(Charsets.UTF_8)))
             }
         }
 
@@ -467,7 +468,7 @@ class MainActivity : FlutterActivity() {
         }
     }
 
-    private fun send(message: String) {
+    private fun send(message: String, targetAddress: String?) {
         val bytes = message.toByteArray(Charsets.UTF_8)
 
         if (bytes.isEmpty() || bytes.size > 20) {
@@ -477,6 +478,9 @@ class MainActivity : FlutterActivity() {
         val gatt = clientGatt
 
         if (gatt != null) {
+            if (targetAddress != null && gatt.device.address != targetAddress) {
+                throw IllegalStateException("Connect to the selected contact before sending")
+            }
             val rx = gatt.getService(serviceUUID)?.getCharacteristic(rxUUID)
                 ?: throw IllegalStateException("Remote RX characteristic unavailable")
 
@@ -508,11 +512,16 @@ class MainActivity : FlutterActivity() {
         val tx = server.getService(serviceUUID)?.getCharacteristic(txUUID)
             ?: throw IllegalStateException("Server TX characteristic unavailable")
 
-        if (subscribers.isEmpty()) {
-            throw IllegalStateException("No connected client subscribed to notifications")
+        val recipients = if (targetAddress != null) {
+            listOf(targetAddress).filter { subscribers.contains(it) }
+        } else {
+            subscribers.toList()
+        }
+        if (recipients.isEmpty()) {
+            throw IllegalStateException("Selected contact is not connected and subscribed")
         }
 
-        subscribers.toList().forEach { address ->
+        recipients.forEach { address ->
             val device = connectedDevices[address] ?: return@forEach
 
             if (Build.VERSION.SDK_INT >= 33) {
