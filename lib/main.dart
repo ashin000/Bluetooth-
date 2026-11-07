@@ -382,7 +382,7 @@ class _MeshHomePageState extends State<MeshHomePage> {
             const Row(
               children: [
                 CircleAvatar(child: Icon(Icons.person)),
-                const SizedBox(width: 12),
+                SizedBox(width: 12),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
