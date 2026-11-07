@@ -401,7 +401,7 @@ class _MeshHomePageState extends State<MeshHomePage> {
                     ),
                     child: Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
                       Align(alignment: Alignment.centerLeft, child: Text(m.text)),
-                      Text(m.time.hour.toString().padLeft(2, '0') + ':' + m.time.minute.toString().padLeft(2, '0'),
+                      Text('${m.time.hour.toString().padLeft(2, '0')}:${m.time.minute.toString().padLeft(2, '0')}',
                         style: const TextStyle(fontSize: 10, color: Colors.white54)),
                     ]),
                   ),
