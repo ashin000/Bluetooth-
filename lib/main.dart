@@ -379,15 +379,15 @@ class _MeshHomePageState extends State<MeshHomePage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
+            const Row(
               children: [
-                const CircleAvatar(child: Icon(Icons.person)),
+                CircleAvatar(child: Icon(Icons.person)),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text('Your profile', style: TextStyle(fontWeight: FontWeight.bold)),
+                      Text('Your profile', style: TextStyle(fontWeight: FontWeight.bold)),
                       Text('Local profile · No account required',
                         style: TextStyle(fontSize: 12, color: Colors.white60)),
                     ],
