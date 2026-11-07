@@ -57,11 +57,14 @@ class _MeshHomePageState extends State<MeshHomePage> {
   bool sending = false;
   String status = 'Bluetooth idle';
   String localId = '';
+  String localName = 'Mesh User';
+  final profileNameController = TextEditingController();
 
   @override
   void initState() {
     super.initState();
     loadLocalId();
+    loadLocalName();
     events = radio.events.listen(onEvent, onError: (Object e) {
       if (mounted) setState(() => status = e.toString());
     });
@@ -75,6 +78,40 @@ class _MeshHomePageState extends State<MeshHomePage> {
       await prefs.setString('mesh_local_id', id);
     }
     if (mounted) setState(() => localId = id);
+  }
+
+  Future<void> loadLocalName() async {
+    final prefs = await SharedPreferences.getInstance();
+    final saved = prefs.getString('mesh_local_name') ?? 'Mesh User';
+    if (!mounted) return;
+    setState(() {
+      localName = saved;
+      profileNameController.text = saved;
+    });
+  }
+
+  Future<void> saveLocalName() async {
+    final value = profileNameController.text.trim();
+    if (value.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Name cannot be empty')),
+      );
+      return;
+    }
+    if (value.length > 24) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Name must be 24 characters or fewer')),
+      );
+      return;
+    }
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('mesh_local_name', value);
+    if (!mounted) return;
+    setState(() => localName = value);
+    FocusScope.of(context).unfocus();
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Local name saved')),
+    );
   }
 
   void onEvent(Map<String, dynamic> e) {
@@ -102,9 +139,7 @@ class _MeshHomePageState extends State<MeshHomePage> {
           DateTime.now(),
         ));
       }
-      if (type == 'sent') {
-        messages.add(_ChatMessage(data.toString(), true, DateTime.now()));
-      }
+      // 'sent' is a transport acknowledgement, not a chat message.
       if (type == 'error') { status = 'Error: $data'; }
     });
   }
@@ -191,6 +226,7 @@ class _MeshHomePageState extends State<MeshHomePage> {
   void dispose() {
     events?.cancel();
     composer.dispose();
+    profileNameController.dispose();
     radio.stopScan();
     radio.stopServer();
     radio.disconnect();
@@ -337,6 +373,57 @@ class _MeshHomePageState extends State<MeshHomePage> {
   );
 
   Widget settingsTab() => ListView(padding: const EdgeInsets.all(16), children: [
+    Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const CircleAvatar(child: Icon(Icons.person)),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text('Your profile', style: TextStyle(fontWeight: FontWeight.bold)),
+                      Text('Local profile · No account required',
+                        style: TextStyle(fontSize: 12, color: Colors.white60)),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: profileNameController,
+              maxLength: 24,
+              textCapitalization: TextCapitalization.words,
+              decoration: const InputDecoration(
+                labelText: 'Display name',
+                hintText: 'Enter your local name',
+                border: OutlineInputBorder(),
+                counterText: '',
+              ),
+              onSubmitted: (_) => saveLocalName(),
+            ),
+            const SizedBox(height: 10),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton.icon(
+                onPressed: saveLocalName,
+                icon: const Icon(Icons.save_outlined),
+                label: const Text('Save profile'),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text('Current name: $localName',
+              style: const TextStyle(color: Colors.white60, fontSize: 12)),
+          ],
+        ),
+      ),
+    ),
     Card(child: ListTile(
       leading: const Icon(Icons.person_outline),
       title: const Text('Local device identity'),
