@@ -429,7 +429,7 @@ class MainActivity : FlutterActivity() {
             status: Int
         ) {
             if (status == BluetoothGatt.GATT_SUCCESS) {
-                emit("connected", "Notifications enabled")
+                emit("connected", gatt.device.address)
             } else {
                 emit("error", "Notification setup failed: $status")
             }
