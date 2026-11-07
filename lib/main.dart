@@ -190,35 +190,45 @@ class _MeshHomePageState extends State<MeshHomePage> {
     if (!mounted) return;
     final type = e['event']?.toString();
     final data = e['data'];
-    setState(() {
-      if (type == 'status') status = data.toString();
-      if (type == 'device') {
-        final d = Map<String, dynamic>.from(data as Map);
-        if (!devices.any((x) => x['address'] == d['address'])) devices.add(d);
+
+    if (type == 'message') {
+      final address = data is Map ? (data['from'] ?? '').toString() : '';
+      final messageText = data is Map ? (data['text'] ?? '').toString() : data.toString();
+      if (address.isNotEmpty) {
+        setState(() {
+          conversations.putIfAbsent(address, () => <_ChatMessage>[])
+              .add(_ChatMessage(messageText, false, DateTime.now()));
+          contacts.putIfAbsent(address, () => 'MeshMessage contact');
+        });
+        persistChatData();
       }
-      if (type == 'connected') {
+      return;
+    }
+
+    setState(() {
+      if (type == 'status') {
+        status = data.toString();
+      } else if (type == 'device') {
+        final device = Map<String, dynamic>.from(data as Map);
+        if (!devices.any((item) => item['address'] == device['address'])) {
+          devices.add(device);
+        }
+      } else if (type == 'connected') {
         connected = true;
         status = 'Connected: $data';
-        // A peer should appear in Chats as soon as its BLE link is ready,
-        // even before the first message is sent.
         final peerAddress = data?.toString() ?? '';
-        if (RegExp(r'^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}
-      if (type == 'disconnected') {
-        connected = false;
-        status = 'Disconnected: $data';
-      }
-      if (type == 'message') {
-        final address = data is Map ? (data['from'] ?? '').toString() : '';
-        final text = data is Map ? (data['text'] ?? '').toString() : data.toString();
-        if (address.isNotEmpty) {
-          conversations.putIfAbsent(address, () => <_ChatMessage>[])
-              .add(_ChatMessage(text, false, DateTime.now()));
-          contacts.putIfAbsent(address, () => 'MeshMessage contact');
+        if (RegExp(r'^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$').hasMatch(peerAddress)) {
+          contacts.putIfAbsent(peerAddress, () => 'MeshMessage contact');
+          conversations.putIfAbsent(peerAddress, () => <_ChatMessage>[]);
           persistChatData();
         }
+      } else if (type == 'disconnected') {
+        connected = false;
+        status = 'Disconnected: $data';
+      } else if (type == 'error') {
+        status = 'Error: $data';
       }
-      // 'sent' is a transport acknowledgement, not a chat message.
-      if (type == 'error') status = 'Error: $data';
+      // Transport acknowledgements are intentionally not displayed as messages.
     });
   }
 
