@@ -264,7 +264,6 @@ class _MeshHomePageState extends State<MeshHomePage> {
       } else if (type == 'connected') {
         connected = true;
         status = 'Connected: $data';
-        final peerAddress = data?.toString() ?? '';
         // The peer identity and profile name arrive in handshake events.
       } else if (type == 'disconnected') {
         connected = false;
