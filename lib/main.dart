@@ -150,14 +150,18 @@ class _MeshHomePageState extends State<MeshHomePage> {
 
   String contactName(String address) => contacts[address] ?? 'Unknown contact';
 
-  Future<void> addOrOpenContact(String address, {String? suggestedName}) async {
+  Future<void> addContact(String address, {String? suggestedName}) async {
     final fallback = suggestedName?.trim().isNotEmpty == true
         ? suggestedName!.trim() : 'MeshMessage contact';
-    if (!contacts.containsKey(address)) contacts[address] = fallback;
+    contacts.putIfAbsent(address, () => fallback);
     conversations.putIfAbsent(address, () => <_ChatMessage>[]);
-    activeChatAddress = address;
     await persistChatData();
-    if (mounted) setState(() => tab = 0);
+    if (mounted) {
+      setState(() {
+        activeChatAddress = null;
+        tab = 0;
+      });
+    }
   }
 
   Future<void> renameContact(String address) async {
@@ -265,7 +269,7 @@ class _MeshHomePageState extends State<MeshHomePage> {
 
   Future<void> connect(String address) async {
     try {
-      await addOrOpenContact(address, suggestedName: devices.firstWhere((d) => d['address'] == address, orElse: () => {})['name']?.toString());
+      await addContact(address, suggestedName: devices.firstWhere((d) => d['address'] == address, orElse: () => {})['name']?.toString());
       await radio.stopScan();
       await radio.connect(address);
     } catch (e) {
@@ -359,27 +363,74 @@ class _MeshHomePageState extends State<MeshHomePage> {
 
   Widget chatTab() {
     if (activeChatAddress == null) {
-      final addresses = contacts.keys.toList();
-      return addresses.isEmpty
-        ? const Center(child: Text('No chats yet. Scan and connect to a nearby device.'))
-        : ListView.builder(
-            itemCount: addresses.length,
-            itemBuilder: (context, index) {
-              final address = addresses[index];
-              final items = conversations[address] ?? [];
-              final last = items.isEmpty ? 'Tap to open conversation' : items.last.text;
-              return ListTile(
-                leading: const CircleAvatar(child: Icon(Icons.person)),
-                title: Text(contactName(address)),
-                subtitle: Text(last, maxLines: 1, overflow: TextOverflow.ellipsis),
-                trailing: PopupMenuButton<String>(
-                  onSelected: (v) { if (v == 'rename') renameContact(address); },
-                  itemBuilder: (_) => const [PopupMenuItem(value: 'rename', child: Text('Edit contact name'))],
+      final addresses = contacts.keys.toList()
+        ..sort((a, b) {
+          final aItems = conversations[a] ?? [];
+          final bItems = conversations[b] ?? [];
+          final aTime = aItems.isEmpty ? DateTime.fromMillisecondsSinceEpoch(0) : aItems.last.time;
+          final bTime = bItems.isEmpty ? DateTime.fromMillisecondsSinceEpoch(0) : bItems.last.time;
+          return bTime.compareTo(aTime);
+        });
+      if (!historyLoaded) {
+        return const Center(child: CircularProgressIndicator());
+      }
+      if (addresses.isEmpty) {
+        return Center(
+          child: Padding(
+            padding: const EdgeInsets.all(28),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.forum_outlined, size: 64, color: Colors.white.withOpacity(0.45)),
+                const SizedBox(height: 16),
+                const Text('Your chats will appear here',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
+                const SizedBox(height: 8),
+                const Text('Connect to a nearby MeshMessage device to add it to your contacts.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: Colors.white60)),
+                const SizedBox(height: 18),
+                FilledButton.icon(
+                  onPressed: () => setState(() => tab = 1),
+                  icon: const Icon(Icons.bluetooth_searching),
+                  label: const Text('Find nearby devices'),
                 ),
-                onTap: () => setState(() => activeChatAddress = address),
-              );
-            },
+              ],
+            ),
+          ),
+        );
+      }
+      return ListView.separated(
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        itemCount: addresses.length,
+        separatorBuilder: (_, __) => const Divider(height: 1, indent: 82, endIndent: 16),
+        itemBuilder: (context, index) {
+          final address = addresses[index];
+          final items = conversations[address] ?? [];
+          final last = items.isEmpty ? 'No messages yet' : items.last.text;
+          final initial = contactName(address).trim().isEmpty
+              ? '?' : contactName(address).trim().characters.first.toUpperCase();
+          return ListTile(
+            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 5),
+            leading: CircleAvatar(
+              radius: 26,
+              backgroundColor: const Color(0xFF285A55),
+              child: Text(initial, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 19)),
+            ),
+            title: Text(contactName(address),
+              style: const TextStyle(fontWeight: FontWeight.w600)),
+            subtitle: Text(last, maxLines: 1, overflow: TextOverflow.ellipsis,
+              style: TextStyle(color: items.isEmpty ? Colors.white54 : Colors.white70)),
+            trailing: PopupMenuButton<String>(
+              onSelected: (v) { if (v == 'rename') renameContact(address); },
+              itemBuilder: (_) => const [
+                PopupMenuItem(value: 'rename', child: Text('Edit contact name')),
+              ],
+            ),
+            onTap: () => setState(() => activeChatAddress = address),
           );
+        },
+      );
     }
     final address = activeChatAddress!;
     final items = conversations[address] ?? [];
