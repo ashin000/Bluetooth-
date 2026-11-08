@@ -483,7 +483,7 @@ class _MeshHomePageState extends State<MeshHomePage> {
         child: ListTile(
           leading: IconButton(icon: const Icon(Icons.arrow_back), onPressed: () => setState(() => activeChatAddress = null)),
           title: Text(contactName(address), style: const TextStyle(fontWeight: FontWeight.bold)),
-          subtitle: Text((peerAddresses[address] ?? 'MeshMessage ID') + (connected && addressPeerIds[connectedPeerAddress ?? ''] == address ? ' · connected' : ' · offline')),
+          subtitle: Text(peerAddresses[address] ?? 'MeshMessage contact'),
           trailing: IconButton(icon: const Icon(Icons.edit), onPressed: () => renameContact(address)),
         ),
       ),
