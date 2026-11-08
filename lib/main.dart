@@ -351,7 +351,10 @@ class _MeshHomePageState extends State<MeshHomePage> {
       body: SafeArea(child: pages[tab]),
       bottomNavigationBar: NavigationBar(
         selectedIndex: tab,
-        onDestinationSelected: (v) => setState(() => tab = v),
+        onDestinationSelected: (v) => setState(() {
+          tab = v;
+          if (v == 0) activeChatAddress = null;
+        }),
         destinations: const [
           NavigationDestination(icon: Icon(Icons.chat_bubble_outline), selectedIcon: Icon(Icons.chat), label: 'Chats'),
           NavigationDestination(icon: Icon(Icons.devices_other), label: 'Devices'),
@@ -409,7 +412,7 @@ class _MeshHomePageState extends State<MeshHomePage> {
           final items = conversations[address] ?? [];
           final last = items.isEmpty ? 'No messages yet' : items.last.text;
           final initial = contactName(address).trim().isEmpty
-              ? '?' : contactName(address).trim().characters.first.toUpperCase();
+              ? '?' : contactName(address).trim().substring(0, 1).toUpperCase();
           return ListTile(
             contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 5),
             leading: CircleAvatar(
