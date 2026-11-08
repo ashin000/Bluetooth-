@@ -363,16 +363,23 @@ class MainActivity : FlutterActivity() {
         scanCallback = object : ScanCallback() {
             override fun onScanResult(callbackType: Int, result: ScanResult) {
                 val device = result.device
-                if (discoveredDevices.add(device.address)) {
-                    emit(
-                        "device",
-                        mapOf(
-                            "name" to (device.name ?: "MeshMessage Device"),
-                            "address" to device.address,
-                            "rssi" to result.rssi
-                        )
-                    )
+                discoveredDevices.add(device.address)
+                val profileData = result.scanRecord?.getServiceData(ParcelUuid(serviceUUID))
+                val profilePayload = profileData?.toString(Charsets.UTF_8) ?: ""
+                val profileName = if (profilePayload.startsWith("N:")) {
+                    profilePayload.substring(2).trim()
+                } else {
+                    ""
                 }
+                emit(
+                    "device",
+                    mapOf(
+                        "name" to (profileName.ifEmpty { device.name ?: "MeshMessage Device" }),
+                        "address" to device.address,
+                        "rssi" to result.rssi,
+                        "profileNameAvailable" to profileName.isNotEmpty()
+                    )
+                )
             }
 
             override fun onScanFailed(errorCode: Int) {
