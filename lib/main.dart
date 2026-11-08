@@ -384,7 +384,7 @@ class _MeshHomePageState extends State<MeshHomePage> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(Icons.forum_outlined, size: 64, color: Colors.white.withOpacity(0.45)),
+                Icon(Icons.forum_outlined, size: 64, color: Colors.white.withValues(alpha: 0.45)),
                 const SizedBox(height: 16),
                 const Text('Your chats will appear here',
                   style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
