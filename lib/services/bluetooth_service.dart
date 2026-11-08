@@ -13,13 +13,13 @@ class BluetoothService {
   Future<bool> requestPermissions() async =>
       await _methods.invokeMethod<bool>('requestPermissions') ?? false;
 
-  Future<void> startServer() => _methods.invokeMethod('startServer');
+  Future<void> startServer(String peerId, String peerName) => _methods.invokeMethod('startServer', {'peerId': peerId, 'peerName': peerName});
   Future<void> stopServer() => _methods.invokeMethod('stopServer');
   Future<void> startScan() => _methods.invokeMethod('startScan');
   Future<void> stopScan() => _methods.invokeMethod('stopScan');
 
-  Future<void> connect(String address) =>
-      _methods.invokeMethod('connect', {'address': address});
+  Future<void> connect(String address, String peerId, String peerName) =>
+      _methods.invokeMethod('connect', {'address': address, 'peerId': peerId, 'peerName': peerName});
 
   Future<void> send(String message, String address) =>
       _methods.invokeMethod('send', {'message': message, 'address': address});
