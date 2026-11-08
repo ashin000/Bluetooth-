@@ -41,6 +41,8 @@ jobs:
           mkdir -p android/app/src/main/kotlin/com/example/mesh_message
           cp AndroidManifest.xml android/app/src/main/AndroidManifest.xml
           cp MainActivity.kt android/app/src/main/kotlin/com/example/mesh_message/MainActivity.kt
+          mkdir -p android/app/src/main/res/drawable
+          cp ic_meshmessage.xml android/app/src/main/res/drawable/ic_meshmessage.xml
 
       - name: Install dependencies
         run: flutter pub get
