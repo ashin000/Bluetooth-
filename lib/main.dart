@@ -52,6 +52,10 @@ class _MeshHomePageState extends State<MeshHomePage> {
   final devices = <Map<String, dynamic>>[];
   final Map<String, List<_ChatMessage>> conversations = {};
   final Map<String, String> contacts = {};
+  final Map<String, String> peerNames = {};
+  final Map<String, String> addressPeerIds = {};
+  final Map<String, String> peerAddresses = {};
+  final Set<String> customContactIds = {};
   String? activeChatAddress;
   bool historyLoaded = false;
   StreamSubscription<Map<String, dynamic>>? events;
@@ -121,6 +125,10 @@ class _MeshHomePageState extends State<MeshHomePage> {
   Future<void> loadChatData() async {
     final prefs = await SharedPreferences.getInstance();
     final rawContacts = prefs.getString('mesh_contacts');
+    final rawCustom = prefs.getString('mesh_custom_contact_ids');
+    if (rawCustom != null) {
+      customContactIds.addAll((jsonDecode(rawCustom) as List).map((e) => e.toString()));
+    }
     final rawMessages = prefs.getString('mesh_conversations');
     if (rawContacts != null) {
       final decoded = jsonDecode(rawContacts) as Map<String, dynamic>;
@@ -142,13 +150,14 @@ class _MeshHomePageState extends State<MeshHomePage> {
   Future<void> persistChatData() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('mesh_contacts', jsonEncode(contacts));
+    await prefs.setString('mesh_custom_contact_ids', jsonEncode(customContactIds.toList()));
     final encoded = conversations.map((key, value) => MapEntry(key, value.map((m) => {
       'text': m.text, 'mine': m.mine, 'time': m.time.toIso8601String(),
     }).toList()));
     await prefs.setString('mesh_conversations', jsonEncode(encoded));
   }
 
-  String contactName(String address) => contacts[address] ?? 'Unknown contact';
+  String contactName(String address) => contacts[address] ?? peerNames[address] ?? 'Unknown contact';
 
   Future<void> addContact(String address, {String? suggestedName}) async {
     final fallback = suggestedName?.trim().isNotEmpty == true
@@ -186,6 +195,7 @@ class _MeshHomePageState extends State<MeshHomePage> {
     controller.dispose();
     if (value == null || value.isEmpty) return;
     contacts[address] = value;
+    customContactIds.add(address);
     await persistChatData();
     if (mounted) setState(() {});
   }
@@ -195,14 +205,48 @@ class _MeshHomePageState extends State<MeshHomePage> {
     final type = e['event']?.toString();
     final data = e['data'];
 
+    if (type == 'peerIdentity') {
+      final info = Map<String, dynamic>.from(data as Map);
+      final address = info['address'].toString();
+      final peerId = info['peerId'].toString();
+      if (peerId.isNotEmpty && peerId != localId) {
+        final previousId = addressPeerIds[address];
+        if (previousId != null && previousId != peerId) {
+          contacts.remove(previousId);
+          conversations.remove(previousId);
+          customContactIds.remove(previousId);
+        }
+        addressPeerIds[address] = peerId;
+        peerAddresses[peerId] = address;
+        contacts.putIfAbsent(peerId, () => peerNames[peerId] ?? 'MeshMessage contact');
+        conversations.putIfAbsent(peerId, () => <_ChatMessage>[]);
+        persistChatData();
+        if (mounted) setState(() {});
+      }
+      return;
+    }
+    if (type == 'peerName') {
+      final info = Map<String, dynamic>.from(data as Map);
+      final address = info['address'].toString();
+      final name = info['name'].toString().trim();
+      final peerId = addressPeerIds[address];
+      if (peerId != null && name.isNotEmpty) {
+        peerNames[peerId] = name;
+        if (!customContactIds.contains(peerId)) contacts[peerId] = name;
+        persistChatData();
+        if (mounted) setState(() {});
+      }
+      return;
+    }
     if (type == 'message') {
       final address = data is Map ? (data['from'] ?? '').toString() : '';
       final messageText = data is Map ? (data['text'] ?? '').toString() : data.toString();
+      final peerId = addressPeerIds[address] ?? address;
       if (address.isNotEmpty) {
         setState(() {
-          conversations.putIfAbsent(address, () => <_ChatMessage>[])
+          conversations.putIfAbsent(peerId, () => <_ChatMessage>[])
               .add(_ChatMessage(messageText, false, DateTime.now()));
-          contacts.putIfAbsent(address, () => 'MeshMessage contact');
+          contacts.putIfAbsent(peerId, () => peerNames[peerId] ?? 'MeshMessage contact');
         });
         persistChatData();
       }
@@ -221,11 +265,7 @@ class _MeshHomePageState extends State<MeshHomePage> {
         connected = true;
         status = 'Connected: $data';
         final peerAddress = data?.toString() ?? '';
-        if (RegExp(r'^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$').hasMatch(peerAddress)) {
-          contacts.putIfAbsent(peerAddress, () => 'MeshMessage contact');
-          conversations.putIfAbsent(peerAddress, () => <_ChatMessage>[]);
-          persistChatData();
-        }
+        // The peer identity and profile name arrive in handshake events.
       } else if (type == 'disconnected') {
         connected = false;
         status = 'Disconnected: $data';
@@ -250,7 +290,7 @@ class _MeshHomePageState extends State<MeshHomePage> {
   Future<void> server() async {
     if (!await prepare()) return;
     try {
-      await radio.startServer();
+      await radio.startServer(localId, localName);
       if (mounted) setState(() { devices.clear(); status = 'Bluetooth server started'; });
     } catch (e) {
       if (mounted) setState(() => status = e.toString());
@@ -269,9 +309,8 @@ class _MeshHomePageState extends State<MeshHomePage> {
 
   Future<void> connect(String address) async {
     try {
-      await addContact(address, suggestedName: devices.firstWhere((d) => d['address'] == address, orElse: () => {})['name']?.toString());
       await radio.stopScan();
-      await radio.connect(address);
+      await radio.connect(address, localId, localName);
     } catch (e) {
       if (mounted) setState(() => status = e.toString());
     }
@@ -286,7 +325,8 @@ class _MeshHomePageState extends State<MeshHomePage> {
     }
     setState(() => sending = true);
     try {
-      await radio.send(value, activeChatAddress!);
+      final peerAddress = peerAddresses[activeChatAddress!] ?? activeChatAddress!;
+      await radio.send(value, peerAddress);
       if (mounted) {
         setState(() => conversations.putIfAbsent(activeChatAddress!, () => <_ChatMessage>[]).add(_ChatMessage(value, true, DateTime.now())));
         await persistChatData();
@@ -443,7 +483,7 @@ class _MeshHomePageState extends State<MeshHomePage> {
         child: ListTile(
           leading: IconButton(icon: const Icon(Icons.arrow_back), onPressed: () => setState(() => activeChatAddress = null)),
           title: Text(contactName(address), style: const TextStyle(fontWeight: FontWeight.bold)),
-          subtitle: Text(address + (connected ? ' · connected' : ' · offline')),
+          subtitle: Text((peerAddresses[address] ?? 'MeshMessage ID') + (connected && addressPeerIds[connectedPeerAddress ?? ''] == address ? ' · connected' : ' · offline')),
           trailing: IconButton(icon: const Icon(Icons.edit), onPressed: () => renameContact(address)),
         ),
       ),
