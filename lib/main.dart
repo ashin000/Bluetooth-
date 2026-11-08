@@ -11,6 +11,79 @@ Future<void> main() async {
   runApp(const MeshMessageApp());
 }
 
+
+class MeshMessageLogo extends StatelessWidget {
+  const MeshMessageLogo({super.key, this.size = 40});
+  final double size;
+
+  @override
+  Widget build(BuildContext context) => SizedBox(
+    width: size,
+    height: size,
+    child: CustomPaint(painter: _MeshMessageLogoPainter()),
+  );
+}
+
+class _MeshMessageLogoPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final scale = size.width / 100;
+    canvas.save();
+    canvas.scale(scale);
+    final green = const Color(0xFF69F08A);
+    final mint = const Color(0xFF9AE8D5);
+    final line = Paint()
+      ..color = green.withValues(alpha: 0.85)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 3.5
+      ..strokeCap = StrokeCap.round;
+    final center = const Offset(50, 52);
+
+    // Three linked devices form a small offline mesh network.
+    final nodes = [const Offset(50, 13), const Offset(15, 78), const Offset(85, 78)];
+    final path = Path()
+      ..moveTo(nodes[0].dx, nodes[0].dy + 7)
+      ..lineTo(nodes[1].dx + 5, nodes[1].dy - 5)
+      ..lineTo(nodes[2].dx - 5, nodes[2].dy - 5)
+      ..close();
+    canvas.drawPath(path, line);
+
+    final halo = Paint()..color = const Color(0xFF0B3A35);
+    canvas.drawCircle(center, 27, halo);
+    final mPaint = Paint()
+      ..color = green
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 8
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round;
+    final m = Path()
+      ..moveTo(32, 66)
+      ..lineTo(32, 39)
+      ..lineTo(50, 56)
+      ..lineTo(68, 39)
+      ..lineTo(68, 66);
+    canvas.drawPath(m, mPaint);
+
+    final phonePaint = Paint()
+      ..color = mint
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 3
+      ..strokeCap = StrokeCap.round;
+    for (final point in nodes) {
+      final rect = Rect.fromCenter(center: point, width: 15, height: 22);
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(rect, const Radius.circular(3)),
+        phonePaint,
+      );
+      canvas.drawCircle(Offset(point.dx, point.dy + 7), 0.9, Paint()..color = mint);
+    }
+    canvas.restore();
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
 class MeshMessageApp extends StatelessWidget {
   const MeshMessageApp({super.key});
 
@@ -381,12 +454,18 @@ class _MeshHomePageState extends State<MeshHomePage> {
     final pages = [chatTab(), deviceTab(), settingsTab()];
     return Scaffold(
       appBar: AppBar(
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        title: Row(
           children: [
-            const Text('MeshMessage', style: TextStyle(fontWeight: FontWeight.bold)),
-            Text(['Chats', 'Nearby devices', 'Settings'][tab],
-              style: const TextStyle(fontSize: 11, color: Colors.white60)),
+            const MeshMessageLogo(size: 34),
+            const SizedBox(width: 10),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('MeshMessage', style: TextStyle(fontWeight: FontWeight.bold)),
+                Text(['Chats', 'Nearby devices', 'Settings'][tab],
+                  style: const TextStyle(fontSize: 11, color: Colors.white60)),
+              ],
+            ),
           ],
         ),
         actions: [
