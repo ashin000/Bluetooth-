@@ -28,6 +28,8 @@ class MainActivity : FlutterActivity() {
     private var clientGatt: BluetoothGatt? = null
     private var eventSink: EventChannel.EventSink? = null
     private var pendingPermissionResult: MethodChannel.Result? = null
+    private var localPeerId: String = ""
+    private var localPeerName: String = "Mesh User"
 
     private val connectedDevices = mutableMapOf<String, BluetoothDevice>()
     private val subscribers = mutableSetOf<String>()
@@ -56,6 +58,8 @@ class MainActivity : FlutterActivity() {
                 when (call.method) {
                     "requestPermissions" -> requestBluetoothPermissions(result)
                     "startServer" -> {
+                        localPeerId = call.argument<String>("peerId") ?: ""
+                        localPeerName = call.argument<String>("peerName") ?: "Mesh User"
                         startServer()
                         result.success(true)
                     }
@@ -74,6 +78,8 @@ class MainActivity : FlutterActivity() {
                     "connect" -> {
                         val address = call.argument<String>("address")
                             ?: throw IllegalArgumentException("Device address missing")
+                        localPeerId = call.argument<String>("peerId") ?: ""
+                        localPeerName = call.argument<String>("peerName") ?: "Mesh User"
                         connect(address)
                         result.success(true)
                     }
@@ -266,13 +272,12 @@ class MainActivity : FlutterActivity() {
                 )
             }
 
-            emit(
-                "message",
-                mapOf(
-                    "from" to device.address,
-                    "text" to value.toString(Charsets.UTF_8)
-                )
-            )
+            val payload = value.toString(Charsets.UTF_8)
+            when {
+                payload.startsWith("~I") -> emit("peerIdentity", mapOf("address" to device.address, "peerId" to payload.substring(2)))
+                payload.startsWith("~N") -> emit("peerName", mapOf("address" to device.address, "name" to payload.substring(2)))
+                else -> emit("message", mapOf("from" to device.address, "text" to payload))
+            }
         }
 
         override fun onDescriptorWriteRequest(
@@ -297,6 +302,10 @@ class MainActivity : FlutterActivity() {
                         BluetoothGatt.GATT_SUCCESS,
                         0, null
                     )
+                }
+                if (subscribers.contains(device.address)) {
+                    notifyPeer(device, "~I" + localPeerId)
+                    notifyPeer(device, "~N" + localPeerName.take(16))
                 }
             }
         }
@@ -430,6 +439,8 @@ class MainActivity : FlutterActivity() {
         ) {
             if (status == BluetoothGatt.GATT_SUCCESS) {
                 emit("connected", gatt.device.address)
+                writeClientPayload(gatt, "~I" + localPeerId)
+                writeClientPayload(gatt, "~N" + localPeerName.take(16))
             } else {
                 emit("error", "Notification setup failed: $status")
             }
@@ -441,7 +452,7 @@ class MainActivity : FlutterActivity() {
             characteristic: BluetoothGattCharacteristic
         ) {
             if (characteristic.uuid == txUUID) {
-                emit("message", mapOf("from" to gatt.device.address, "text" to (characteristic.value?.toString(Charsets.UTF_8) ?: "")))
+                handleClientPayload(gatt, characteristic.value?.toString(Charsets.UTF_8) ?: "")
             }
         }
 
@@ -451,7 +462,7 @@ class MainActivity : FlutterActivity() {
             value: ByteArray
         ) {
             if (characteristic.uuid == txUUID) {
-                emit("message", mapOf("from" to gatt.device.address, "text" to value.toString(Charsets.UTF_8)))
+                handleClientPayload(gatt, value.toString(Charsets.UTF_8))
             }
         }
 
@@ -464,6 +475,44 @@ class MainActivity : FlutterActivity() {
                 emit("sent", "GATT write acknowledged")
             } else {
                 emit("error", "GATT write failed: $status")
+            }
+        }
+    }
+
+    private fun handleClientPayload(gatt: BluetoothGatt, payload: String) {
+        when {
+            payload.startsWith("~I") -> emit("peerIdentity", mapOf("address" to gatt.device.address, "peerId" to payload.substring(2)))
+            payload.startsWith("~N") -> emit("peerName", mapOf("address" to gatt.device.address, "name" to payload.substring(2)))
+            payload.isNotEmpty() -> emit("message", mapOf("from" to gatt.device.address, "text" to payload))
+        }
+    }
+
+    private fun writeClientPayload(gatt: BluetoothGatt, payload: String) {
+        val rx = gatt.getService(serviceUUID)?.getCharacteristic(rxUUID) ?: return
+        val bytes = payload.toByteArray(Charsets.UTF_8)
+        if (Build.VERSION.SDK_INT >= 33) {
+            gatt.writeCharacteristic(rx, bytes, BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT)
+        } else {
+            @Suppress("DEPRECATION")
+            run {
+                rx.value = bytes
+                rx.writeType = BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT
+                gatt.writeCharacteristic(rx)
+            }
+        }
+    }
+
+    private fun notifyPeer(device: BluetoothDevice, payload: String) {
+        val server = gattServer ?: return
+        val tx = server.getService(serviceUUID)?.getCharacteristic(txUUID) ?: return
+        val bytes = payload.toByteArray(Charsets.UTF_8)
+        if (Build.VERSION.SDK_INT >= 33) {
+            server.notifyCharacteristicChanged(device, tx, false, bytes)
+        } else {
+            @Suppress("DEPRECATION")
+            run {
+                tx.value = bytes
+                server.notifyCharacteristicChanged(device, tx, false)
             }
         }
     }
