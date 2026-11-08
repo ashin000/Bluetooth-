@@ -53,6 +53,7 @@ class _MeshHomePageState extends State<MeshHomePage> {
   final Map<String, List<_ChatMessage>> conversations = {};
   final Map<String, String> contacts = {};
   final Map<String, String> peerNames = {};
+  final Map<String, String> addressPeerNames = {};
   final Map<String, String> addressPeerIds = {};
   final Map<String, String> peerAddresses = {};
   final Set<String> customContactIds = {};
@@ -232,6 +233,10 @@ class _MeshHomePageState extends State<MeshHomePage> {
       final peerId = addressPeerIds[address];
       if (peerId != null && name.isNotEmpty) {
         peerNames[peerId] = name;
+        addressPeerNames[address] = name;
+        for (final device in devices) {
+          if (device['address']?.toString() == address) device['name'] = name;
+        }
         if (!customContactIds.contains(peerId)) contacts[peerId] = name;
         persistChatData();
         if (mounted) setState(() {});
@@ -258,8 +263,13 @@ class _MeshHomePageState extends State<MeshHomePage> {
         status = data.toString();
       } else if (type == 'device') {
         final device = Map<String, dynamic>.from(data as Map);
-        if (!devices.any((item) => item['address'] == device['address'])) {
+        final address = device['address']?.toString() ?? '';
+        device['name'] = addressPeerNames[address] ?? device['name'] ?? 'MeshMessage Device';
+        final existingIndex = devices.indexWhere((item) => item['address'] == address);
+        if (existingIndex == -1) {
           devices.add(device);
+        } else {
+          devices[existingIndex] = device;
         }
       } else if (type == 'connected') {
         connected = true;
