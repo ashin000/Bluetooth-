@@ -194,12 +194,35 @@ class MainActivity : FlutterActivity() {
         emit("status", "Starting BLE server")
     }
 
+    private fun truncateUtf8(value: String, maxBytes: Int): String {
+        val result = StringBuilder()
+        var used = 0
+        for (character in value) {
+            val part = character.toString()
+            val count = part.toByteArray(Charsets.UTF_8).size
+            if (used + count > maxBytes) break
+            result.append(part)
+            used += count
+        }
+        return result.toString()
+    }
+
     private fun startAdvertising() {
         val settings = AdvertiseSettings.Builder()
             .setAdvertiseMode(AdvertiseSettings.ADVERTISE_MODE_LOW_LATENCY)
             .setConnectable(true)
             .setTimeout(0)
             .setTxPowerLevel(AdvertiseSettings.ADVERTISE_TX_POWER_HIGH)
+            .build()
+
+        // Scan response carries a compact app profile name. The complete name
+        // is exchanged again after connection because BLE payloads are size-limited.
+        val advertisedName = truncateUtf8(localPeerName, 11)
+        val scanResponse = AdvertiseData.Builder()
+            .addServiceData(
+                ParcelUuid(serviceUUID),
+                ("N:" + advertisedName).toByteArray(Charsets.UTF_8)
+            )
             .build()
 
         val data = AdvertiseData.Builder()
@@ -217,7 +240,7 @@ class MainActivity : FlutterActivity() {
             }
         }
 
-        advertiser?.startAdvertising(settings, data, advertisingCallback)
+        advertiser?.startAdvertising(settings, data, scanResponse, advertisingCallback)
     }
 
     private val serverCallback = object : BluetoothGattServerCallback() {
