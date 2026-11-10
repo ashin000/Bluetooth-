@@ -38,9 +38,12 @@ jobs:
           channel: stable
           cache: true
 
-      - name: Generate Android project
+      - name: Generate a clean Android wrapper
         run: |
-          flutter create --platforms=android --org com.example --project-name mesh_message .
+          mkdir -p /tmp/meshmessage_android
+          flutter create --platforms=android --org com.example --project-name mesh_message /tmp/meshmessage_android
+          rm -rf android
+          cp -a /tmp/meshmessage_android/android ./android
           mkdir -p android/app/src/main/kotlin/com/example/mesh_message
           cp native/android/AndroidManifest.xml android/app/src/main/AndroidManifest.xml
           cp native/android/MainActivity.kt android/app/src/main/kotlin/com/example/mesh_message/MainActivity.kt
