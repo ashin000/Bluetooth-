@@ -28,6 +28,8 @@ class MainActivity : FlutterActivity() {
     private var clientGatt: BluetoothGatt? = null
     private var eventSink: EventChannel.EventSink? = null
     private var pendingPermissionResult: MethodChannel.Result? = null
+    private var localPeerId: String = ""
+    private var localPeerName: String = "Mesh User"
 
     private val connectedDevices = mutableMapOf<String, BluetoothDevice>()
     private val subscribers = mutableSetOf<String>()
@@ -56,6 +58,8 @@ class MainActivity : FlutterActivity() {
                 when (call.method) {
                     "requestPermissions" -> requestBluetoothPermissions(result)
                     "startServer" -> {
+                        localPeerId = call.argument<String>("peerId") ?: ""
+                        localPeerName = call.argument<String>("peerName") ?: "Mesh User"
                         startServer()
                         result.success(true)
                     }
@@ -74,12 +78,15 @@ class MainActivity : FlutterActivity() {
                     "connect" -> {
                         val address = call.argument<String>("address")
                             ?: throw IllegalArgumentException("Device address missing")
+                        localPeerId = call.argument<String>("peerId") ?: ""
+                        localPeerName = call.argument<String>("peerName") ?: "Mesh User"
                         connect(address)
                         result.success(true)
                     }
                     "send" -> {
                         val message = call.argument<String>("message") ?: ""
-                        send(message)
+                        val address = call.argument<String>("address")
+                        send(message, address)
                         result.success(true)
                     }
                     "disconnect" -> {
@@ -187,12 +194,35 @@ class MainActivity : FlutterActivity() {
         emit("status", "Starting BLE server")
     }
 
+    private fun truncateUtf8(value: String, maxBytes: Int): String {
+        val result = StringBuilder()
+        var used = 0
+        for (character in value) {
+            val part = character.toString()
+            val count = part.toByteArray(Charsets.UTF_8).size
+            if (used + count > maxBytes) break
+            result.append(part)
+            used += count
+        }
+        return result.toString()
+    }
+
     private fun startAdvertising() {
         val settings = AdvertiseSettings.Builder()
             .setAdvertiseMode(AdvertiseSettings.ADVERTISE_MODE_LOW_LATENCY)
             .setConnectable(true)
             .setTimeout(0)
             .setTxPowerLevel(AdvertiseSettings.ADVERTISE_TX_POWER_HIGH)
+            .build()
+
+        // Scan response carries a compact app profile name. The complete name
+        // is exchanged again after connection because BLE payloads are size-limited.
+        val advertisedName = truncateUtf8(localPeerName, 11)
+        val scanResponse = AdvertiseData.Builder()
+            .addServiceData(
+                ParcelUuid(serviceUUID),
+                ("N:" + advertisedName).toByteArray(Charsets.UTF_8)
+            )
             .build()
 
         val data = AdvertiseData.Builder()
@@ -210,7 +240,7 @@ class MainActivity : FlutterActivity() {
             }
         }
 
-        advertiser?.startAdvertising(settings, data, advertisingCallback)
+        advertiser?.startAdvertising(settings, data, scanResponse, advertisingCallback)
     }
 
     private val serverCallback = object : BluetoothGattServerCallback() {
@@ -265,13 +295,12 @@ class MainActivity : FlutterActivity() {
                 )
             }
 
-            emit(
-                "message",
-                mapOf(
-                    "from" to device.address,
-                    "text" to value.toString(Charsets.UTF_8)
-                )
-            )
+            val payload = value.toString(Charsets.UTF_8)
+            when {
+                payload.startsWith("~I") -> emit("peerIdentity", mapOf("address" to device.address, "peerId" to payload.substring(2)))
+                payload.startsWith("~N") -> emit("peerName", mapOf("address" to device.address, "name" to payload.substring(2)))
+                else -> emit("message", mapOf("from" to device.address, "text" to payload))
+            }
         }
 
         override fun onDescriptorWriteRequest(
@@ -296,6 +325,10 @@ class MainActivity : FlutterActivity() {
                         BluetoothGatt.GATT_SUCCESS,
                         0, null
                     )
+                }
+                if (subscribers.contains(device.address)) {
+                    notifyPeer(device, "~I" + localPeerId)
+                    notifyPeer(device, "~N" + localPeerName.take(16))
                 }
             }
         }
@@ -330,16 +363,23 @@ class MainActivity : FlutterActivity() {
         scanCallback = object : ScanCallback() {
             override fun onScanResult(callbackType: Int, result: ScanResult) {
                 val device = result.device
-                if (discoveredDevices.add(device.address)) {
-                    emit(
-                        "device",
-                        mapOf(
-                            "name" to (device.name ?: "MeshMessage Device"),
-                            "address" to device.address,
-                            "rssi" to result.rssi
-                        )
-                    )
+                discoveredDevices.add(device.address)
+                val profileData = result.scanRecord?.getServiceData(ParcelUuid(serviceUUID))
+                val profilePayload = profileData?.toString(Charsets.UTF_8) ?: ""
+                val profileName = if (profilePayload.startsWith("N:")) {
+                    profilePayload.substring(2).trim()
+                } else {
+                    ""
                 }
+                emit(
+                    "device",
+                    mapOf(
+                        "name" to (profileName.ifEmpty { device.name ?: "MeshMessage Device" }),
+                        "address" to device.address,
+                        "rssi" to result.rssi,
+                        "profileNameAvailable" to profileName.isNotEmpty()
+                    )
+                )
             }
 
             override fun onScanFailed(errorCode: Int) {
@@ -394,12 +434,21 @@ class MainActivity : FlutterActivity() {
                 return
             }
 
-            val tx = gatt.getService(serviceUUID)?.getCharacteristic(txUUID)
+            val service = gatt.getService(serviceUUID)
+            val rx = service?.getCharacteristic(rxUUID)
+            val tx = service?.getCharacteristic(txUUID)
+            if (rx == null) {
+                emit("error", "MeshMessage RX characteristic not found; sending unavailable")
+                return
+            }
             if (tx == null) {
                 emit("error", "MeshMessage TX characteristic not found")
                 return
             }
 
+            // Enable the chat composer as soon as the remote writable RX endpoint
+            // is confirmed. Notification subscription is only needed for receiving.
+            emit("connected", gatt.device.address)
             gatt.setCharacteristicNotification(tx, true)
             val descriptor = tx.getDescriptor(cccdUUID)
 
@@ -428,7 +477,9 @@ class MainActivity : FlutterActivity() {
             status: Int
         ) {
             if (status == BluetoothGatt.GATT_SUCCESS) {
-                emit("connected", "Notifications enabled")
+                emit("connected", gatt.device.address)
+                writeClientPayload(gatt, "~I" + localPeerId)
+                writeClientPayload(gatt, "~N" + localPeerName.take(16))
             } else {
                 emit("error", "Notification setup failed: $status")
             }
@@ -440,7 +491,7 @@ class MainActivity : FlutterActivity() {
             characteristic: BluetoothGattCharacteristic
         ) {
             if (characteristic.uuid == txUUID) {
-                emit("message", characteristic.value?.toString(Charsets.UTF_8) ?: "")
+                handleClientPayload(gatt, characteristic.value?.toString(Charsets.UTF_8) ?: "")
             }
         }
 
@@ -450,7 +501,7 @@ class MainActivity : FlutterActivity() {
             value: ByteArray
         ) {
             if (characteristic.uuid == txUUID) {
-                emit("message", value.toString(Charsets.UTF_8))
+                handleClientPayload(gatt, value.toString(Charsets.UTF_8))
             }
         }
 
@@ -467,7 +518,45 @@ class MainActivity : FlutterActivity() {
         }
     }
 
-    private fun send(message: String) {
+    private fun handleClientPayload(gatt: BluetoothGatt, payload: String) {
+        when {
+            payload.startsWith("~I") -> emit("peerIdentity", mapOf("address" to gatt.device.address, "peerId" to payload.substring(2)))
+            payload.startsWith("~N") -> emit("peerName", mapOf("address" to gatt.device.address, "name" to payload.substring(2)))
+            payload.isNotEmpty() -> emit("message", mapOf("from" to gatt.device.address, "text" to payload))
+        }
+    }
+
+    private fun writeClientPayload(gatt: BluetoothGatt, payload: String) {
+        val rx = gatt.getService(serviceUUID)?.getCharacteristic(rxUUID) ?: return
+        val bytes = payload.toByteArray(Charsets.UTF_8)
+        if (Build.VERSION.SDK_INT >= 33) {
+            gatt.writeCharacteristic(rx, bytes, BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT)
+        } else {
+            @Suppress("DEPRECATION")
+            run {
+                rx.value = bytes
+                rx.writeType = BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT
+                gatt.writeCharacteristic(rx)
+            }
+        }
+    }
+
+    private fun notifyPeer(device: BluetoothDevice, payload: String) {
+        val server = gattServer ?: return
+        val tx = server.getService(serviceUUID)?.getCharacteristic(txUUID) ?: return
+        val bytes = payload.toByteArray(Charsets.UTF_8)
+        if (Build.VERSION.SDK_INT >= 33) {
+            server.notifyCharacteristicChanged(device, tx, false, bytes)
+        } else {
+            @Suppress("DEPRECATION")
+            run {
+                tx.value = bytes
+                server.notifyCharacteristicChanged(device, tx, false)
+            }
+        }
+    }
+
+    private fun send(message: String, targetAddress: String?) {
         val bytes = message.toByteArray(Charsets.UTF_8)
 
         if (bytes.isEmpty() || bytes.size > 20) {
@@ -477,6 +566,9 @@ class MainActivity : FlutterActivity() {
         val gatt = clientGatt
 
         if (gatt != null) {
+            if (targetAddress != null && gatt.device.address != targetAddress) {
+                throw IllegalStateException("Connect to the selected contact before sending")
+            }
             val rx = gatt.getService(serviceUUID)?.getCharacteristic(rxUUID)
                 ?: throw IllegalStateException("Remote RX characteristic unavailable")
 
@@ -508,11 +600,16 @@ class MainActivity : FlutterActivity() {
         val tx = server.getService(serviceUUID)?.getCharacteristic(txUUID)
             ?: throw IllegalStateException("Server TX characteristic unavailable")
 
-        if (subscribers.isEmpty()) {
-            throw IllegalStateException("No connected client subscribed to notifications")
+        val recipients = if (targetAddress != null) {
+            listOf(targetAddress).filter { subscribers.contains(it) }
+        } else {
+            subscribers.toList()
+        }
+        if (recipients.isEmpty()) {
+            throw IllegalStateException("Selected contact is not connected and subscribed")
         }
 
-        subscribers.toList().forEach { address ->
+        recipients.forEach { address ->
             val device = connectedDevices[address] ?: return@forEach
 
             if (Build.VERSION.SDK_INT >= 33) {
