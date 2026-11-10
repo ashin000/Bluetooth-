@@ -394,11 +394,26 @@ class MainActivity : FlutterActivity() {
                 return
             }
 
-            val tx = gatt.getService(serviceUUID)?.getCharacteristic(txUUID)
+            val service = gatt.getService(serviceUUID)
+            if (service == null) {
+                emit("error", "MeshMessage service not found")
+                return
+            }
+
+            val rx = service.getCharacteristic(rxUUID)
+            val tx = service.getCharacteristic(txUUID)
+            if (rx == null) {
+                emit("error", "MeshMessage RX characteristic not found")
+                return
+            }
             if (tx == null) {
                 emit("error", "MeshMessage TX characteristic not found")
                 return
             }
+
+            // The GATT connection and writable RX characteristic are ready.
+            // Enable the chat UI now; notification setup is only needed for receiving.
+            emit("connected", "Connected — ready to send")
 
             gatt.setCharacteristicNotification(tx, true)
             val descriptor = tx.getDescriptor(cccdUUID)
@@ -428,9 +443,11 @@ class MainActivity : FlutterActivity() {
             status: Int
         ) {
             if (status == BluetoothGatt.GATT_SUCCESS) {
-                emit("connected", "Notifications enabled")
+                emit("status", "Notifications enabled — ready to receive")
             } else {
-                emit("error", "Notification setup failed: $status")
+                // Sending still works through the RX characteristic even if
+                // the optional notification subscription fails.
+                emit("error", "Receive notifications unavailable: $status")
             }
         }
 
