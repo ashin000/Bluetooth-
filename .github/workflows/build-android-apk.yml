@@ -15,17 +15,6 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Extract project ZIP
-        run: |
-          test -f MeshMessage_Hybrid_v0.2.zip
-          mkdir -p /tmp/mm
-          unzip -q MeshMessage_Hybrid_v0.2.zip -d /tmp/mm
-          cp -a /tmp/mm/MeshMessage_Hybrid_v0.2/. .
-
-      - name: Fix old widget test label in bundled source
-        run: |
-          sed -i 's/Bluetooth-only prototype v0.1/Hybrid Bluetooth + LoRa prototype v0.2/g' test/widget_test.dart
-
       - name: Set up Java
         uses: actions/setup-java@v4
         with:
@@ -38,23 +27,28 @@ jobs:
           channel: stable
           cache: true
 
-      - name: Generate a clean Android wrapper
+      - name: Generate clean Android wrapper with MeshMessage branding
         run: |
           mkdir -p /tmp/meshmessage_android
           flutter create --platforms=android --org com.example --project-name mesh_message /tmp/meshmessage_android
           rm -rf android
           cp -a /tmp/meshmessage_android/android ./android
           mkdir -p android/app/src/main/kotlin/com/example/mesh_message
-          cp native/android/AndroidManifest.xml android/app/src/main/AndroidManifest.xml
-          cp native/android/MainActivity.kt android/app/src/main/kotlin/com/example/mesh_message/MainActivity.kt
+          mkdir -p android/app/src/main/res/drawable
+          cp AndroidManifest.xml android/app/src/main/AndroidManifest.xml
+          cp MainActivity.kt android/app/src/main/kotlin/com/example/mesh_message/MainActivity.kt
+          cp ic_meshmessage.xml android/app/src/main/res/drawable/ic_meshmessage.xml
 
       - name: Install Flutter packages
         run: flutter pub get
 
+      - name: Analyze
+        run: flutter analyze
+
       - name: Run widget tests
         run: flutter test
 
-      - name: Build APK
+      - name: Build release APK
         run: flutter build apk --release
 
       - name: Upload APK artifact
