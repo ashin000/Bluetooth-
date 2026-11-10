@@ -434,12 +434,21 @@ class MainActivity : FlutterActivity() {
                 return
             }
 
-            val tx = gatt.getService(serviceUUID)?.getCharacteristic(txUUID)
+            val service = gatt.getService(serviceUUID)
+            val rx = service?.getCharacteristic(rxUUID)
+            val tx = service?.getCharacteristic(txUUID)
+            if (rx == null) {
+                emit("error", "MeshMessage RX characteristic not found; sending unavailable")
+                return
+            }
             if (tx == null) {
                 emit("error", "MeshMessage TX characteristic not found")
                 return
             }
 
+            // Enable the chat composer as soon as the remote writable RX endpoint
+            // is confirmed. Notification subscription is only needed for receiving.
+            emit("connected", gatt.device.address)
             gatt.setCharacteristicNotification(tx, true)
             val descriptor = tx.getDescriptor(cccdUUID)
 
